@@ -21,7 +21,7 @@ def plot_mock(ax):
 def plot_hopping_scan(result , sel = None, exp_name = "exp", date = "00/00/0000 00:00"):
     """Plot results of hopping scan
 
-    If data is aquired with QTF setup, voltage and current are not available. 
+    If data is aquired with QTF setup, voltage and current are not available.
     """
     plt.style.use("seaborn")
 
@@ -104,4 +104,54 @@ def plot_surface(result):
     ax.set_ylabel('Y(um)')
     ax.set_title('Z(um)')
 
+    plt.show()
+
+def plot_lockin(data = {}, keys = [("frequency", "r")], date = None):
+    """Plot data collected by lockin amplifier
+
+    For description of variables and units, see [1].
+
+    Parameters
+    -----------
+    data: dict
+        Key,value pairs of variables' values.
+    keys: list of tuples
+        Pairs of variables to plot on x,y axes
+    date: str
+        Date of the experimetn
+
+    References:
+      [1] https://www.zhinst.com/sites/default/files/LabOneProgrammingManual_42388.pdf
+    """
+    if not isinstance(keys, (list, np.ndarray)): keys = [keys]
+    nplots = len(keys)
+    nrows = nplots // 2
+    if nplots % 2 == 1: nrows += 1
+    ncols = 2 if nplots > 1 else 1
+
+    # units mapping
+    labels = {"frequency": "f [Hz]",
+             "r": "amplitude [V]",
+             "phase": r'$\theta$ [rad]',
+             "phasepwr": r'$\theta^2$ [$rad^2$]',
+             "x": "x-value [V]", "y": "y-value [V]"}
+
+    plt.style.use("seaborn")
+    fig, axs = plt.subplots(nrows, ncols, squeeze = False,
+                            figsize = (ncols*6.4, nrows*4.8))
+    axs = axs.flatten()
+    #     fig.tight_layout()
+    text = "Oscilator"
+    if date:
+        text = "{} @ {}".format(text, date)
+    fig.suptitle(text, size  = 16, y = 0.92)
+
+    for i, k in enumerate(keys):
+        try:
+            axs[i].plot(data[k[0]], data[k[1]])
+            axs[i].set_xlabel(labels[k[0]])
+            axs[i].set_ylabel(labels[k[1]])
+            # axs[i].set_title(" ".join(labels[k[1]].split(" ")[:-1]))
+        except KeyError as e:
+            plot_mock(axs[i])
     plt.show()

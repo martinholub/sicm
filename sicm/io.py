@@ -88,3 +88,54 @@ def downsample_to_linenumber(result = {}, lineno = -1, which = "last"):
     print("Number of datapoints = {}".format(len(idx)))
 
     return(result_out)
+
+
+def load_data_lockin(folder = ".", fname = "", chunk = 0):
+    """Load data exported by ZHInst LabOne
+
+    Parameters
+    -----------
+    folder: str
+        location of data files
+    fname: str
+        name of file to load; semicolon delimtied
+    chunk: int
+        Number of sweep to pull out
+
+    Returns
+    -------
+    result: dict
+        Data values in chunk as key,value pair
+    date: str
+        Date of last modification of the loaded file
+    """
+    fname = os.path.abspath(os.path.join(folder, fname))
+    assert os.path.isfile(fname), "File does not exist"
+    assert isinstance(chunk, (int, )), "Chunk is not an integer"
+    print("Exctracting chunk {} from file {}.".format(chunk, fname))
+
+    with open(fname, "r") as rf:
+        ssvf = csv.reader(rf, delimiter = ";")
+        headline = next(ssvf) # skip header line
+        first_line = None
+        result = {}
+        for i, row in enumerate(ssvf):
+            if int(row[0]) != chunk: continue
+            if not first_line: # collect information shared by all variables in chunk
+                first_line = i
+                timestamp = int(row[1])
+                size = int(row[2])
+            result[row[3]] =  np.asarray(list(map(float, filter(None, row[4:]))))
+
+    if len(set(map(len, result.values()))) not in (0, 1):
+        raise ValueErrorr('not all arrays have same length!')
+
+    # Their timestamp is not what we expect, take it from file modification time
+    timestamp = os.path.getmtime(fname)
+    t = time.localtime(timestamp)
+    date = "{:02d}/{:02d}/{:04d} {:02d}:{:02d}".format(t.tm_mday, t.tm_mon, t.tm_year,
+                                                       t.tm_hour, t.tm_min)
+
+    print("Experiment time: {}, # of points: {}".format(date, size))
+
+    return(result, date)
