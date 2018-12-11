@@ -1,5 +1,6 @@
 
 import numpy as np
+import os
 
 import matplotlib as mpl
 from matplotlib import pyplot as plt
@@ -106,7 +107,7 @@ def plot_surface(result):
 
     plt.show()
 
-def plot_lockin(data = {}, keys = [("frequency", "r")], date = None):
+def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None):
     """Plot data collected by lockin amplifier
 
     For description of variables and units, see [1].
@@ -141,7 +142,10 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None):
                             figsize = (ncols*6.4, nrows*4.8))
     axs = axs.flatten()
     #     fig.tight_layout()
-    text = "Oscilator"
+    if name is None:
+        text = "Oscilator"
+    else:
+        text = os.path.splitext(name)[0]
     if date:
         text = "{} @ {}".format(text, date)
     fig.suptitle(text, size  = 16, y = 0.92)

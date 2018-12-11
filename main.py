@@ -4,7 +4,7 @@ from sicm.utils.SubArgParser import SubArgParser
 
 # TODO: Add also other args to parser, but keep flexible enough
 
-ap = SubArgParser(prog="Cell line Sheet Replacement", add_help=True)
+ap = SubArgParser(prog="SICM Toolkit", add_help=True)
 args = ap.parse_args()
 
 if args.what == "scan":
@@ -26,9 +26,9 @@ if args.what == "scan":
 
 elif args.what == "lockin":
     # Data loc
-    datadir = "C:/Users/mholub/data/sicm/2018/11_Nov/30/session_20181130_145223_03/sweep1_001"
+    datadir = "S:/UsersData/Martin/2018/12_Dec/04/session_20181204_143956_07/sweep1_000"
 
     file = "dev662_demods_0_sample_00000.csv"
-    data, date = io.load_data_lockin(datadir, file, chunk = 3)
+    data, date = io.load_data_lockin(datadir, file, chunk = 2)
     plots.plot_lockin(data, date = date,
         keys = list(zip(5*["frequency"], ["r", "phase", "phasepwr", "x", "y"])))
