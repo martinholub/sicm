@@ -111,8 +111,7 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True):
     return (X_sq, Y_sq , Z_sq_corr)
 
 class Fitter(object):
-    """Fitter object
-    TODO: Document
+    """Class for fitting a Lorentzian curve to frequency sweep data.
     """
     def __init__(self, data, guess = None, date = None):
         self.data = data
@@ -121,7 +120,7 @@ class Fitter(object):
 
     @property
     def data(self):
-        "Data as (x, y) tuple."
+        """Data as (f, r, theta) tuple."""
         return self._data
     @data.setter
     def data(self, value):
@@ -137,12 +136,15 @@ class Fitter(object):
     def date(self, value):
         if value is None:
             value = "00/00/0000 00:00"
-        assert isinstance(value, (str, )), "Date si not a string."
+        assert isinstance(value, (str, )), "Date is not a string."
         self._date = value
 
     @property
     def guess(self):
-        """Ïnitial guess for curve fit."""
+        """Ïnitial guess for curve fit.
+
+        Success of fiting is strongly determined by accuracy of initial guess.
+        """
         return self._guess
     @guess.setter
     def guess(self, value):
@@ -155,14 +157,16 @@ class Fitter(object):
         """ Lorenzian function
 
         Constructs a Lorenzian function of the form y = f(x, *params), following
-        equation 1 in [1].
+        equation 1 in [1]. Here, y is the voltage amplitude of electrically driven
+        oscillations, measured experimentall and x is frequency in Hz.
 
         Parameters
         -------------
         f: np.ndarray
             Frequency in Hz. An independent variable for function fit.
         params: tuple, list
-            Tuple of (i, w0, Q, CC). Parameters to be fitted.
+            Tuple of (i, Q, w0, CC). Parameters to be fitted. If not supplying
+            p0 to curve_fit, must pass all parameters directly (not via *tuple).
 
         Returns
         -------------
@@ -182,13 +186,30 @@ class Fitter(object):
                 (1+2*CC*(1-(w/w0)**2)+CC**2*(1-(w/w0)**2)**2+CC**2*(w/(w0*Q))**2) / \
                 ((1 - (w/w0)**2)**2+(w/(w0*Q))**2)
             )
-
-        # r_e = i*w/(Q*w0)*np.sqrt((1+2*CC*(1-w**2/(w0)**2)+CC**2*(1-w**2/(w0)**2)**2+CC**2*w**2/(((w0)**2)*Q**2))/((1-w**2/((w0)**2))**2+w**2/(((w0)**2)*Q**2)))
         return r_e
 
     def fit_function(self, fun):
         """Fits function to data
 
+        Fits function fun to data starting from initial guess. Both guess and data
+        should have been passed to class constructor. Uses scipy's `curve_fit`.
+        `fun` must take same number of additional arguments as is the length of `guess`.
+
+        Whether fitting is successful depends largely on accuracy of initial guess,
+        especially for `w0` and `CC` paramaters.
+
+        Returns (Assigns)
+        ------------
+        popt: tuple
+            Values of fitted free parameters in fun, (i0, Q, w0, CC).
+        Q: float
+            Quality factor. ~200 for QTF in cotact, and ~10k for free QTF.
+        f0: float
+            Resonance frequency in Hz.
+
+        References
+        ----------
+          [1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.curve_fit.html#scipy.optimize.curve_fit
         TODO: decorator logging params of curve_fit call
         TODO: progbar
         """
@@ -202,12 +223,12 @@ class Fitter(object):
             print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
 
         popt, _ = curve_fit(fun, x, y, p0 = self.guess, maxfev = np.int(1e7))
-        # More complicated method, but does not fare much better
+        # More complicated method, but does not fare  better
         # popt, _ = curve_fit(fun, x, y, p0 = self.guess, method = "trf",
         #     ftol = 1e-12, xtol = 1e-12, maxfev = np.int(1e7), sigma = len(x)*[1e-5],
         #     bounds = ([1e-4, 1e2, 3e4*2*np.pi, 1e-2], [1e1, 2e4, 4e4*2*np.pi, 1e4]))
         end_time = timeit.default_timer()
-        print("Found parameters: {}".format(popt))
+        print("Found parameters: {}.".format(popt))
         print("Finished in {:.3f} s".format(end_time - start_time))
         self.popt = popt
         self.Q = popt[1]
@@ -216,15 +237,34 @@ class Fitter(object):
     def apply_correction(self, theta_e = None):
         """Applies correction for stray capacitance
 
-        Implemented as per Lee et al. 2007 [1]
-        TODO: Docstring
+        Implemented as per Lee et al. 2007 [1].
+
+        Parameters
+        -----------
+        theta_e: array-like
+            Phase measured experimentally. Should be in -pi/2 .. pi/2. If None,
+            will be calculated from data.
+
+        Returns (Assigns)
+        --------------
+        r_m: array-like
+            Amplitude of mechanically driven oscillations, with stray capacitance
+            compensated. Eq 3 in [1].
+        theta_m: array-like
+            Phase of mechanicaly driven oscillations. Eq 4 in [1].
+        theta_e: array-like
+            Phase of electrically driven oscillations. Eq 2 in [1].
+
+        References
+        ---------
+          [1]: https://doi.org/10.1063/1.2756125
         """
         i0, Q, w0, CC = self.popt
         w = self.data[0] * 2 * np.pi
-        r_e = self.data[1] # could also pass fitted values r_e
+        r_e = self.data[1] # could also use fitted values r_e
         # Obtain argument(phase) of complex expression
         # note that this is in range -pi/2..pi/2 whereas range of phase in saved data
-        # is 0..-pi. So far not troubeling, but keep in mind
+        # is 0..-pi. Need to adjust one or the other for comparability.
         if theta_e is None:
             theta_e = np.arctan2(
                 (1 - (w/w0)**2 + CC*(1-(w/w0)**2)**2 + CC*(w/(w0*Q))**2), w/(w0*Q))
@@ -240,7 +280,9 @@ class Fitter(object):
 
     def plot_fit(self, fun):
         """Plots results of function fitting
-        TODO: Docstring
+
+        Calculates error of the fit as sum of square errors, scaled by maximum
+        amplitude in sampled data.
         """
         f = self.data[0]
         r = self.data[1]
@@ -254,6 +296,7 @@ class Fitter(object):
         text = "Lorentzian fit @ {}".format(self.date)
         fig.suptitle(text, size  = 16, y = 0.92)
 
+        # Plot amplitude on first axis
         ax.plot(f, r, label = r"$A_e$ (data)", marker = ".", color = "k", alpha = 0.3,
                 markevery = 5, linestyle = "")
         ax.plot(f, r_e, "k--", label = r"$A_e$ (fit)", alpha = 0.7)
@@ -266,26 +309,28 @@ class Fitter(object):
         plt.text(1.1, 0.1, txt, transform=ax.transAxes,
             fontdict = {'color': 'k', 'fontsize': 12, 'ha': 'left', 'va': 'center',
                         'bbox': dict(boxstyle="square", fc="w", ec="k", pad=0.2)})
-        # Plot phase on second axis
 
+        # Plot phase on second axis
         ax2 = ax.twinx()
         ax2.plot(f, self.theta_e, "r--", label = r"$\theta_e$", alpha = 0.3)
         ax2.plot(f, self.theta_m, "r-", label = r"$\theta_m$", alpha = 0.3)
         ax2.set_ylabel("phase [rad]", color="r")
         ax2.tick_params("y", colors="r")
         ax2.grid(axis = "y", color = "r", alpha = .3, linewidth = .5, linestyle = ":")
-
+        # Combine legends and show.
         h1, l1 = ax.get_legend_handles_labels()
         h2, l2 = ax2.get_legend_handles_labels()
-
         ax.legend(h1+h2, l1+l2, bbox_to_anchor = (1.3, 1.1), frameon = True)
         plt.show()
 
     def process(self):
-        """Runs fitting and plotting of frequency sweep
-        TODO: Docstring
+        """Wrapper for fitting, correcting and plotting freq. sweep data
+
+        Optionally, can pase `theta_e` to `apply_correction` to use meausred values
+        instead of computed ones.
+
         """
-        fun = Fitter.lorentzian_fun
+        fun = Fitter.lorentzian_fun # must use correct class name
         self.fit_function(fun)
         self.apply_correction() # can pass self.data[2] here
         self.plot_fit(fun)
