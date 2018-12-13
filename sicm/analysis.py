@@ -7,6 +7,8 @@ import matplotlib as mpl
 
 from scipy.optimize import curve_fit
 
+from sicm.utils import utils
+
 class Picker(object):
     """Object to collect information on clicked points"""
     def __init__(self):
@@ -321,6 +323,7 @@ class Fitter(object):
         h1, l1 = ax.get_legend_handles_labels()
         h2, l2 = ax2.get_legend_handles_labels()
         ax.legend(h1+h2, l1+l2, bbox_to_anchor = (1.3, 1.1), frameon = True)
+        utils.save_fig(text)
         plt.show()
 
     def process(self):

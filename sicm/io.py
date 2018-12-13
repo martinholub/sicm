@@ -119,13 +119,16 @@ def load_data_lockin(folder = ".", fname = "", chunk = 0):
         headline = next(ssvf) # skip header line
         first_line = None
         result = {}
+        bad_rows = set(["count", "nexttimestamp", "settimestamp"])
         for i, row in enumerate(ssvf):
             if int(row[0]) != chunk: continue
             if not first_line: # collect information shared by all variables in chunk
                 first_line = i
                 timestamp = int(row[1])
                 size = int(row[2])
-            result[row[3]] =  np.asarray(list(map(float, filter(None, row[4:]))))
+            if row[3] in bad_rows: continue
+            filt_row = filter(lambda x: x != "nan", filter(None, row[4:]))
+            result[row[3]] =  np.asarray(list(map(float, filt_row)))
 
     if len(set(map(len, result.values()))) not in (0, 1):
         raise ValueErrorr('not all arrays have same length!')
