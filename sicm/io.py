@@ -23,9 +23,9 @@ def load_result(files = [], exp_name = ""):
                 except ValueError as e:
                     import pdb; pdb.set_trace()
                 result[name] = row
-    print(result.keys())
+    print("Avaliable data:"); print(result.keys())
     num_vals = set(x.shape for x in result.values())
-    assert(len(num_vals) <= 1)
+    assert len(num_vals) <= 1, "Not all arays are of same length."
     print("Number of datapoints = {}".format(list(num_vals)[0]))
     return(result)
 
@@ -68,16 +68,17 @@ def downsample_to_linenumber(result = {}, lineno = -1, which = "last"):
 
     assert "LineNumber" in result.keys()
     assert "dt(s)" in result.keys()
-
     tf = np.isin(result["LineNumber"], lineno)
     tf_diff = np.diff(tf.astype(np.int))
+    idx = np.argwhere(tf) # Select all with this line number
 
+    # Only last or fist element point of approach
     if which == "last":
-        idx = np.argwhere(tf_diff == -1)
+        ret_idx = np.argwhere(tf_diff == -1)
     elif which == "first":
-        idx = np.argwhere(tf_diff == 1)
-    else:
-        idx = np.argwhere(tf)
+        ret_idx = np.argwhere(tf_diff == 1)
+    # Get indices to the sub'idx'ed array
+    ret_idx = np.nonzero(np.in1d(idx, ret_idx))[0]
 
     for k,v in result.items():
         if k == "dt(s)":
@@ -87,7 +88,7 @@ def downsample_to_linenumber(result = {}, lineno = -1, which = "last"):
 
     print("Number of datapoints = {}".format(len(idx)))
 
-    return(result_out)
+    return(result_out, ret_idx)
 
 
 def load_data_lockin(folder = ".", fname = "", chunk = 0):

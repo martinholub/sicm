@@ -9,9 +9,11 @@ args = ap.parse_args()
 
 if args.what == "scan":
     # Globals
-    datadir = "C:/Users/mholub/data/sicm/2018/11_Nov/27"
+    datadir = "C:/Users/mholub/data/sicm/2018/11_Nov/26"
+    datadir = "S:/UsersData/Martin/2018/12_Dec/12/sicm/exp4"
     # Locals
-    exp_name = "scan1"
+    exp_name = "scan3"
+    exp_name = "scan_hopping_qtf_current_veryfast"
 
     # Get files
     files, date = io.get_files(datadir, exp_name)

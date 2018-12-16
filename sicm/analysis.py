@@ -6,8 +6,11 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 from scipy.optimize import curve_fit
+from scipy.signal import detrend
+from scipy import stats
 
 from sicm.utils import utils
+from sicm.filters import LowPassButter
 
 class Picker(object):
     """Object to collect information on clicked points"""
@@ -111,6 +114,106 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True):
             plt.show()
 
     return (X_sq, Y_sq , Z_sq_corr)
+
+def detrend_signal(x, y):
+    """ Detrends Data
+
+    References
+    ------------
+    [1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.linregress.html
+    [2]: https://gist.github.com/junzis/e06eca03747fc194e322
+    """
+    # Obtain main trend from data with low pass filter,
+    lpb = LowPassButter()
+    y_filt = lpb.filter(y, cutoff = .5, fs = 10, order = 3)
+    # Fit stright line to the the trend, remove artifacts from beginning
+    cutid = len(y)//10
+    x_ = x - x[0] # start from zero on time axis
+    m, b, _, _, _ = stats.linregress(x_[cutid:], y_filt[cutid:])
+    trend = m*x_ + b
+    # substratct the trend from data.
+    ret = y - (m*x_) # -b
+    # ret = detrend(sig, type = "linear")
+    # Show diagnostic plot.
+    plot_detrend_diagnose(y, y_filt, trend, ret, x_, cutid)
+    return ret
+
+def plot_detrend_diagnose(orig, filt, trend, ret, x, cutid = 100):
+    """Plot intermediate steps of detrending process
+
+    If it looks like detrending is not doing what it is supposed to, you should
+    adjust values of cutoff, fs and order parameters.
+    """
+    plt.style.use("seaborn")
+    fig, axs = plt.subplots(nrows = 1, ncols = 2, figsize = (2*6.4, 4.8))
+    axs.flatten()
+    fig.suptitle("Detrending Diagnostic Plot", size  = 16, y = 0.96)
+    for y, fmt, l in zip( (orig, filt, trend, ret),
+                        ("b-", "k-", "g--", "r-"),
+                        ("original", "filtered", "trend", "final")):
+        axs[0].plot(x[0:cutid], y[0:cutid], fmt, alpha = 0.2)
+        axs[0].plot(x[cutid:], y[cutid:], fmt, alpha = 0.5, label = l)
+        axs[1].plot(x[cutid:], y[cutid:], fmt, alpha = 0.5, label = l)
+    axs[0].axvline(x[cutid], color = "gray", linestyle = ":", label = "cutid")
+    axs[0].set_title("Full range")
+    axs[1].set_title("Detail after cutid")
+    for ax in axs:
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel(r"$\theta$ [$\degree$]")
+        ax.legend()
+
+def correlate_signals(data, xkey, ykeys):
+    """correlate_signals
+
+    Correlates signals described by ykeys
+    """
+    y0 = data[ykeys[0]].flatten()
+    y1 = data[ykeys[1]].flatten()
+    cc = np.corrcoef(y0, y1)
+    txt = "Correlation Coefficient ({} vs {}): {:.4f}."
+    print(txt.format(ykeys[0], ykeys[1], cc[0, -1]))
+
+
+def _find_peaks(x, guessid, window_size = 50):
+    """Finds indices of peaks in data, using initial guess of their id
+    """
+    # Figure out if you are looking for minima or maxima
+    avg_guess = np.mean(x[guessid])
+    avg_all = np.mean(x)
+    if avg_guess >= avg_all:
+        extrema = "max"
+    elif avg_guess < avg_all:
+        extrema = "min"
+
+    # Pull out indices of extrma around guessed id and within +- window_size
+    # TODO: can you vectorize this?
+    idxs = []
+    annots = []
+    for i in guessid:
+        low = np.maximum(i-window_size, 0)
+        high = np.minimum(i+window_size, len(x))
+        temp = x[low:high]
+        if extrema == "max":
+            extr_id = np.argmax(temp)
+        elif extrema == "min":
+            extr_id = np.argmin(temp)
+        idxs.append(extr_id + low)
+        annots.append(_describe_peak(temp, extr_id))
+
+    return(np.asarray(idxs), annots)
+
+def _describe_peak(seq, idx):
+    """Describe peak
+
+    This will produce useless vals for Z, because Z changes peridocically with bigger
+    time scale.
+    Must pay attention that window_size does not overlap other peak(s).
+    """
+    baseline = np.median(np.delete(seq, idx))
+    rel_change = ((seq[idx] - (baseline)) / np.abs(baseline))
+
+    return baseline, rel_change
+
 
 class Fitter(object):
     """Class for fitting a Lorentzian curve to frequency sweep data.
