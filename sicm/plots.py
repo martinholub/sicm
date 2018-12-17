@@ -117,7 +117,8 @@ def plot_surface(result):
 
     plt.show()
 
-def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None):
+def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None,
+                xlog = False):
     """Plot data collected by lockin amplifier
 
     For description of variables and units, see [1].
@@ -168,6 +169,9 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
             axs[i].plot(data[k[0]], data[k[1]])
             axs[i].set_xlabel(labels[k[0]])
             axs[i].set_ylabel(labels[k[1]])
+            if xlog:
+                axs[i].set_xscale("log")
+                axs[i].set_xlabel("log " + labels[k[0]])
             # axs[i].set_title(" ".join(labels[k[1]].split(" ")[:-1]))
         except KeyError as e:
             plot_mock(axs[i])
