@@ -339,7 +339,8 @@ class Fitter(object):
         self.Q = popt[1]
         self.f0 = popt[2]/(2*np.pi)
 
-    def apply_correction(self, theta_e = None):
+    def apply_correction(self, theta_e = None, f = np.array([]), r_e = np.array([]),
+                        popt = None):
         """Applies correction for stray capacitance
 
         Implemented as per Lee et al. 2007 [1].
@@ -349,6 +350,10 @@ class Fitter(object):
         theta_e: array-like
             Phase measured experimentally. Should be in -pi/2 .. pi/2. If None,
             will be calculated from data.
+        f: array-like
+            Frequency. Optional.
+        r_e: array-like
+            Amplitude. Optional.
 
         Returns (Assigns)
         --------------
@@ -364,9 +369,19 @@ class Fitter(object):
         ---------
           [1]: https://doi.org/10.1063/1.2756125
         """
-        i0, Q, w0, CC = self.popt
-        w = self.data[0] * 2 * np.pi
-        r_e = self.data[1] # could also use fitted values r_e
+        if popt is not None:
+            i0, Q, w0, CC = popt
+        else:
+            i0, Q, w0, CC = self.popt
+        if isinstance(f, (float, int, np.float, np.int)):
+            pass
+        elif f.size == 0 :
+            f = self.data[0]
+        if isinstance(f, (float, int, np.float, np.int)):
+            pass
+        elif r_e.size == 0:
+            r_e = self.data[1] # could also use fitted values r_e
+        w = f * 2 * np.pi
         # Obtain argument(phase) of complex expression
         # note that this is in range -pi/2..pi/2 whereas range of phase in saved data
         # is 0..-pi. Need to adjust one or the other for comparability.
@@ -382,6 +397,8 @@ class Fitter(object):
         self.r_m = r_m
         self.theta_m = theta_m
         self.theta_e = theta_e
+
+        return r_m
 
     def plot_fit(self, fun):
         """Plots results of function fitting
@@ -438,5 +455,5 @@ class Fitter(object):
         """
         fun = Fitter.lorentzian_fun # must use correct class name
         self.fit_function(fun)
-        self.apply_correction() # can pass self.data[2] here
+        _ = self.apply_correction() # can pass self.data[2] here
         self.plot_fit(fun)
