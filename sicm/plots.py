@@ -82,6 +82,8 @@ def plot_hopping_scan(result , sel = None, exp_name = "exp", date = "00/00/0000 
 def plot_surface(result):
     """Plot surface as contours and 3D"""
 
+    result = analysis.correct_for_current(result)
+
     X = np.squeeze(result["X(um)"])
     Y = np.squeeze(result["Y(um)"])
     Z = np.squeeze(result["Z(um)"])

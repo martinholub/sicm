@@ -83,8 +83,7 @@ def downsample_to_linenumber(result = {}, lineno = -1, which = "last"):
     for k,v in result.items():
         if k == "dt(s)":
             result_out["time(s)"] = np.cumsum(v)[idx]
-        else:
-            result_out[k] = v[idx]
+        result_out[k] = v[idx]
 
     print("Number of datapoints = {}".format(len(idx)))
 

@@ -214,6 +214,66 @@ def _describe_peak(seq, idx):
 
     return baseline, rel_change
 
+def correct_for_current(data, sel = None, ncorr = 1, window_size = 100):
+    """ Try to correct for jumps in current
+
+    Parametrs
+    --------------
+    data: dict
+    sel: array-like
+        Indices to values in dict, selecting 'first' or 'last' values.
+    ncorr: int
+        How many corrections to perform, how many jumps are in the data?
+    window_size: int
+        Will consider values from [-window_size/2:window_size/+1]
+
+    Return
+    """
+    window_size = window_size + 10
+    data_ = copy.deepcopy(data)
+    if ncorr == 0: return data_
+    print("WARNING: Data will be corrected for jump in current and height.")
+
+    try:
+        # Full data, for output
+        x_ = data_["Current1(A)"]
+        y_ = data_["Z(um)"]
+        # Selected data, for math
+        if sel is None: sel = np.arange(0, len(x_))
+        x = x_[sel]
+        y = y_[sel]
+    except AttributeError as e:
+        raise e # must have these keys
+
+    # Find where the biggest ncorr jumps occur
+    grad = np.diff(x.flatten())
+    idxs = np.argsort(np.abs(grad))[::-1] # sort decreasing
+    idxs = np.sort(idxs[0:ncorr]) # sort increasing
+    idxs = np.append(idxs, -1)
+
+    for i in range(len(idxs) - 1):
+        # If multiple ncorr, avoid spanning other peaks as well
+        prev_id = 0 if i == 0 else idxs[i-1]
+        next_id = (len(x) -1) if idxs[i+1] == - 1 else idxs[i+1]
+        low_id = np.amax([prev_id, idxs[i] - window_size//2])
+        high_id = np.amin([next_id, idxs[i] + window_size//2 + 1])
+        # Y, height
+        pre_peak = np.average(y[low_id:idxs[i] - 5])
+        post_peak = np.average(y[idxs[i] + 5: high_id])
+        # X
+        x_pre_peak = np.average(x[low_id:idxs[i] - 5])
+        x_post_peak = np.average(x[idxs[i] + 5: high_id])
+        # correct values
+        # Adjust post_peak values by the difference of pre_peak and post peak
+        x_[sel[idxs[i]] + 1:sel[next_id] + 1] = \
+                    x_[sel[idxs[i]] +1:sel[next_id] + 1] + (x_pre_peak - x_post_peak)
+        y_[sel[idxs[i]] + 1:sel[next_id] +1 ] = \
+                    y_[sel[idxs[i]] +1:sel[next_id] + 1] + (pre_peak - post_peak)
+
+    # reassing
+    data_["Current1(A)"] = x_
+    data_["Z(um)"] = y_
+    return data_
 
 class Fitter(object):
     """Class for fitting a Lorentzian curve to frequency sweep data.

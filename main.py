@@ -8,12 +8,18 @@ ap = SubArgParser(prog="SICM Toolkit", add_help=True)
 args = ap.parse_args()
 
 if args.what == "scan":
+    # You should run this from command line for interactive plotting to work properly
     # Globals
     datadir = "C:/Users/mholub/data/sicm/2018/11_Nov/26"
     datadir = "S:/UsersData/Martin/2018/12_Dec/12/sicm/exp4"
+    datadir = "S:/UsersData/Martin/2018/12_Dec/21"
+    datadir = "S:/UsersData/Martin/2018/12_Dec/21"
+
     # Locals
     exp_name = "scan3"
     exp_name = "scan_hopping_qtf_current_veryfast"
+    exp_name = "scan1"
+    exp_name = "scan2_tip_again_perhaps_broken"
 
     # Get files
     files, date = io.get_files(datadir, exp_name)
@@ -22,9 +28,9 @@ if args.what == "scan":
     # Select Line Number
     uniqs, cnts = np.unique(result_["LineNumber"], return_counts=True)
     linenos = np.arange(5, max(uniqs), 3)
-    result = io.downsample_to_linenumber(result_, linenos, which = "last")
-
-    plots.plot_surface(result)
+    result, idxs = io.downsample_to_linenumber(result_, linenos, which = "last")
+    result_ = {k:v[idxs] for k,v in result.items()}
+    plots.plot_surface(result_)
 
 elif args.what == "lockin":
     # Data loc
