@@ -232,8 +232,12 @@ def correct_for_current(data, sel = None, ncorr = 1, window_size = 100):
     """
     window_size = window_size + 10
     data_ = copy.deepcopy(data)
-    if ncorr == 0: return data_
-    print("WARNING: Data will be corrected for jump in current and height.")
+    if ncorr == 0:
+        return data_
+    else:
+        msg = "WARNING: Data will be corrected for jump in current and height.\n" + \
+              "The keys corresponding to the values will be appended with '_corrected'."
+        print(msg)
 
     try:
         # Full data, for output
@@ -266,14 +270,16 @@ def correct_for_current(data, sel = None, ncorr = 1, window_size = 100):
         x_post_peak = np.average(x[idxs[i] + 5: high_id])
         # correct values
         # Adjust post_peak values by the difference of pre_peak and post peak
+        # This is usually fine for current, and mostly acceptable for z if
+        # not changing too abruptly.
         x_[sel[idxs[i]] + 1:sel[next_id] + 1] = \
                     x_[sel[idxs[i]] +1:sel[next_id] + 1] + (x_pre_peak - x_post_peak)
         y_[sel[idxs[i]] + 1:sel[next_id] +1 ] = \
                     y_[sel[idxs[i]] +1:sel[next_id] + 1] + (pre_peak - post_peak)
 
     # reassing
-    data_["Current1(A)"] = x_
-    data_["Z(um)"] = y_
+    data_["Current1(A)_corrected"] = x_
+    data_["Z(um)_corrected"] = y_
     return data_
 
 class Fitter(object):
