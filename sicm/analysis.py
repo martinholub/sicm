@@ -11,6 +11,7 @@ from scipy import stats
 
 from sicm.utils import utils
 from sicm.filters import LowPassButter
+from math import ceil
 
 class Picker(object):
     """Object to collect information on clicked points"""
@@ -278,10 +279,11 @@ def correct_for_current(data, sel = None, ncorr = 1, window_size = 100):
 class Fitter(object):
     """Class for fitting a Lorentzian curve to frequency sweep data.
     """
-    def __init__(self, data, guess = None, date = None):
+    def __init__(self, data, V_out = .1, guess = None, date = None):
         self.data = data
         self.guess = guess
         self.date = date
+        self.V_out = V_out
 
     @property
     def data(self):
@@ -317,6 +319,7 @@ class Fitter(object):
             assert isinstance(value, (list, tuple)), "Guess must be a tuple."
             print("Expecting {} paramters in fit.".format(len(value)))
         self._guess = value
+
 
     def lorentzian_fun(f, *params):
         """ Lorenzian function
@@ -398,6 +401,20 @@ class Fitter(object):
         self.popt = popt
         self.Q = popt[1]
         self.f0 = popt[2]/(2*np.pi)
+
+        # Extract presumed parameters of oscillator
+        v0 = popt[0]
+        r = 23750 # https://dx.doi.org/10.3938/NPSM.65.76
+        I0 = v0 / r
+        L = (r * popt[1])/popt[2]
+        C = 1/((popt[2]**2) * L)
+        C0 = popt[3] * C # C0 is parasitic capacitance
+        V0 = (1/C) * (I0 / (popt[1]*popt[2]))
+        resonator_params = {
+            "R": r, "L": L, "C": C, "C0":C0,
+            "I0": I0, "V0": V0
+        }
+        print("Presumed Resonator Parameters: \n{}".format(resonator_params))
 
     def apply_correction(self, theta_e = None, f = np.array([]), r_e = np.array([]),
                         popt = None):
