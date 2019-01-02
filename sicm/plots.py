@@ -2,7 +2,7 @@
 import numpy as np
 import os
 from copy import deepcopy
-import pandas as pd
+from textwrap import wrap
 
 import matplotlib as mpl
 from matplotlib import pyplot as plt
@@ -257,10 +257,36 @@ def plot_approach(  data, xkey, sel = None, guessid = np.array([]),
 
     # sigs = [s for s in data_.keys() if s.lower().startswith(("_", "current"))]
     # analysis.correlate_signals(data_, xkey, sigs)
-    annot = annotate_dframe(annot)
+    annot = utils.annotate_dframe(annot)
     return annot
 
-def annotate_dframe(annot):
-    """Convert peak annotation to dataframe"""
-    dframe = pd.DataFrame.from_dict(annot, orient = "columns")
-    return dframe
+def plot_generic(x, y, x_lab, y_lab, legend, fname):
+    """Generic ploting function
+
+    This is an attempt of generic function that produces publication quality
+    plots. Parameters have their usual meanings.
+    """
+    # set plotting style
+    plt.style.use("seaborn-ticks")
+    params = {  "font.family": "serif",
+                "font.weight": "normal",
+                "xtick.labelsize": 10,
+                "ytick.labelsize": 10,
+                "xtick.bottom": True,
+                "xtick.direction": "in",
+                "ytick.left": True,
+                "ytick.direction": "in"}
+    mpl.rcParams.update(params)
+
+    fig = plt.figure(figsize = (4.5, 4.5))
+    ax = fig.add_subplot(1, 1, 1)
+    line = ax.plot(x, y, c = "k")
+    ax.set_xlabel(x_lab)
+    ax.set_ylabel(y_lab)
+    legend = '\n'.join(wrap(legend, 20))
+    ax.legend([legend], fontsize = ax.xaxis.label.get_size()-2,
+                borderaxespad = 1.1)
+
+    utils.save_fig(fname)
+    # recover plotting style
+    mpl.rcParams.update(mpl.rcParamsDefault)
