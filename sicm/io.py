@@ -182,3 +182,44 @@ def load_comsol(fname):
         pd_ret = pd.DataFrame(ret)
 
         return pd_ret
+
+def _combine_paths(fileparts):
+    """Combines parts of filename to a single path
+
+    Parameters
+    -----------
+    fileparts: array-like
+        Parts of path to be joined with sys separator.
+
+    """
+    if isinstance(fileparts, (list, tuple)):
+        if len(fileparts) > 1:
+            fname = os.path.join(fileparts[0], *fileparts[1:])
+        else:
+            fname = fileparts[0]
+    else:
+        fname = fileparts
+    return fname
+
+def save_dataframe(df, fileparts):
+    """Helper function to pickle dataframe"""
+    fname = _combine_paths(fileparts)
+
+    root, ext = os.path.splitext(fname)
+    if not ext: # by default save to pickle format
+        ext = ".pkl"
+    fname = root + ext
+
+    df.to_pickle(fname)
+    print("Saved dataframe to {}.".format(fname))
+
+def load_dataframe(fileparts):
+    """Load a dataframe
+
+    Parameters
+    -----------
+    fileparts: array-like
+        Parts of path to be joined with sys separator."""
+    fname = _combine_paths(fileparts)
+    df = pd.read_pickle(fname)
+    return(df)

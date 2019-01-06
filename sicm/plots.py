@@ -3,6 +3,7 @@ import numpy as np
 import os
 from copy import deepcopy
 from textwrap import wrap
+import itertools
 
 import matplotlib as mpl
 from matplotlib import pyplot as plt
@@ -179,11 +180,11 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
             plot_mock(axs[i])
     plt.show()
 
-def plot_approach(  data, xkey, sel = None, guessid = np.array([]),
+def plot_approach(  data, xkey, guessid = np.array([]),
                     name = None, date = None):
     """Plots all keys in data against x-key
 
-    As plot lockin but on a single plot. But of code duplication, but gives
+    As plot lockin but on a single plot. Bit of code duplication, but gives
     flexibility later.
 
     References
@@ -219,18 +220,14 @@ def plot_approach(  data, xkey, sel = None, guessid = np.array([]),
     fmts = ["k-", "r-", "g-"]
     handles = []
     labels = []
-    data_ = deepcopy(data)
-    annot = {}
-    for i, (k, v) in enumerate(data.items()):
+    data_, annot = analysis.annotate_peaks(data, xkey, guessid, do_plot = True)
+    for i, (k, v) in enumerate(data_.items()):
         if k == xkey: continue # dont plot x vs x
-        if "phase" in k.lower():
-            v = analysis.detrend_signal(data[xkey].flatten(), v.flatten())
-            data_["_" + k] = v # assing detrendend phase
-        peaks_id, peaks_annot = analysis._find_peaks(v, guessid)
+        peaks_id = annot[k.lstrip("_")]["peaks_id"]
         try:
-            axs[i].plot(data[xkey], v, fmts[i], label = k, alpha = .5)
+            axs[i].plot(data_[xkey], v, fmts[i], label = k, alpha = .5)
             this_color = fmts[i][0]
-            axs[i].plot(data[xkey][peaks_id], v[peaks_id], alpha = 1,
+            axs[i].plot(data_[xkey][peaks_id], v[peaks_id], alpha = 1,
                         linestyle = "", marker = "*", markersize = 10,
                         markerfacecolor = this_color)
 
@@ -243,12 +240,6 @@ def plot_approach(  data, xkey, sel = None, guessid = np.array([]),
             handles.extend(h)
             labels.extend(l)
             # axs[i].set_title(" ".join(labels[k[1]].split(" ")[:-1]))
-            annot.update({k: {"peaks_id": peaks_id,
-                            "peaks_val": v[peaks_id].flatten(),
-                            "peaks_times": data[xkey][peaks_id].flatten(),
-                            "baseline": np.asarray([a[0] for a in peaks_annot]).flatten(),
-                            "rel_change": np.asarray([a[1] for a in peaks_annot]).flatten()
-                            }})
         except KeyError as e:
             plot_mock(axs[i])
     # Combine legends and show.
@@ -257,10 +248,7 @@ def plot_approach(  data, xkey, sel = None, guessid = np.array([]),
 
     # sigs = [s for s in data_.keys() if s.lower().startswith(("_", "current"))]
     # analysis.correlate_signals(data_, xkey, sigs)
-    annot = utils.annotate_dframe(annot)
-    return annot
-
-def plot_generic(x, y, x_lab, y_lab, legend, fname):
+def plot_generic(Xs, Ys, x_labs, y_labs, legend, fname):
     """Generic ploting function
 
     This is an attempt of generic function that produces publication quality
@@ -277,16 +265,70 @@ def plot_generic(x, y, x_lab, y_lab, legend, fname):
                 "ytick.left": True,
                 "ytick.direction": "in"}
     mpl.rcParams.update(params)
+    fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."])
+    fmts = ["".join(x) for x in fmts_prod]
 
     fig = plt.figure(figsize = (4.5, 4.5))
     ax = fig.add_subplot(1, 1, 1)
-    line = ax.plot(x, y, c = "k")
-    ax.set_xlabel(x_lab)
-    ax.set_ylabel(y_lab)
-    legend = '\n'.join(wrap(legend, 20))
-    ax.legend([legend], fontsize = ax.xaxis.label.get_size()-2,
+    fmts = fmts[0:len(Xs[0])]
+    for x, y, x_lab, y_lab, fmt in zip(Xs, Ys, x_labs, y_labs, fmts):
+        line = ax.plot(x, y, fmt)
+        ax.set_xlabel(x_lab)
+        ax.set_ylabel(y_lab)
+
+    if not isinstance(legend, (list, tuple)): legend = [legend]
+    legend = ['\n'.join(wrap(l, 20)) for l in legend]
+    ax.legend(legend, fontsize = ax.xaxis.label.get_size()-2,
                 borderaxespad = 1.1)
 
     utils.save_fig(fname)
+    # recover plotting style
+    mpl.rcParams.update(mpl.rcParamsDefault)
+
+
+def boxplot_generic(x, x_labs = None, y_lab = None, legend = None, fname = None):
+    """Generic Boxplot function
+
+    This is an attempt of generic function that produces publication quality
+    boxplots. Parameters have their usual meanings.
+
+    References
+      [1]: https://stackoverflow.com/a/49689249
+    """
+    # set plotting style
+    plt.style.use("seaborn-ticks")
+    params = {  "font.family": "serif",
+                "font.weight": "normal",
+                "xtick.labelsize": 10,
+                "ytick.labelsize": 10,
+                "xtick.bottom": False,
+                "xtick.direction": "in",
+                "ytick.left": True,
+                "ytick.direction": "in"}
+    mpl.rcParams.update(params)
+
+    if x_labs is None:
+        try:
+            x_labs = np.arange(1, len(x[0])+1).tolist()
+        except ValueError as e:
+            x_labs = np.arange(1, len(x)+1).tolist()
+    if not isinstance(x_labs, (list, tuple, np.ndarray)): x_labs = [x_labs]
+
+    fig = plt.figure(figsize = (4.5, 4.5))
+    ax = fig.add_subplot(1, 1, 1)
+    bxplt = ax.boxplot(x, labels = x_labs, medianprops = {"color": "black", "linestyle": '-.'})
+    ax.set_ylabel(y_lab)
+
+    # legend
+    if legend is not None:
+        if not isinstance(legend, (list, tuple)): legend = [legend]
+        legend = ['\n'.join(wrap(l, 20)) for l in legend]
+        # `handletextpad=-2.0, handlelength=0` hides the marker in legend [1]
+        ax.legend(legend, fontsize = ax.xaxis.label.get_size()-2,
+                    borderaxespad = 1.1,
+                    handletextpad=-2.0, handlelength=0)
+
+    if fname is not None:
+        utils.save_fig(fname)
     # recover plotting style
     mpl.rcParams.update(mpl.rcParamsDefault)

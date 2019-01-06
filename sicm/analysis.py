@@ -116,7 +116,7 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True):
 
     return (X_sq, Y_sq , Z_sq_corr)
 
-def detrend_signal(x, y):
+def detrend_signal(x, y, do_plot = True):
     """ Detrends Data
 
     References
@@ -136,7 +136,8 @@ def detrend_signal(x, y):
     ret = y - (m*x_) # -b
     # ret = detrend(sig, type = "linear")
     # Show diagnostic plot.
-    plot_detrend_diagnose(y, y_filt, trend, ret, x_, cutid)
+    if do_plot:
+        plot_detrend_diagnose(y, y_filt, trend, ret, x_, cutid)
     return ret
 
 def plot_detrend_diagnose(orig, filt, trend, ret, x, cutid = 100):
@@ -209,11 +210,64 @@ def _describe_peak(seq, idx):
     This will produce useless vals for Z, because Z changes peridocically with bigger
     time scale.
     Must pay attention that window_size does not overlap other peak(s).
+
+    Parameters
+    -----------
+    seq: array-like
+        Sequence of values
+    idx: int
+        Location of peak.
+
+    Returns
+    -----------
+    baseline: float
+        median of all but peak values in sequence
+    rel_change: float
+        Change between peak and baseline value, scaled by baseline
     """
     baseline = np.median(np.delete(seq, idx))
-    rel_change = ((seq[idx] - (baseline)) / np.abs(baseline))
+    rel_change = np.abs((seq[idx] - (baseline)) / baseline)
 
     return baseline, rel_change
+
+def annotate_peaks(data, xkey, guessid, window_size = 50, do_plot = False):
+    """Get information on peaks
+
+    Parameters
+    ----------
+    data: dict
+    xkey: str
+    guessid: array-like
+        Indices at or around which peaks are expected
+    window_size: int
+        Half-size of window to inspect for extrema around guessid
+    do_plot: bool
+
+    Returns
+    -------------
+    data_: dict
+        Data as before, except for phase that was detrended.
+        TODO: Later can consdier detrending also other keys.
+    annot: pandas.DataFrame
+        Structrue with information on peaks obtained for each array in data, except for
+        the one stored under xkey.
+    """
+    data_ = copy.deepcopy(data)
+    annot = {}
+    for i, (k, v) in enumerate(data.items()):
+        if k == xkey: continue # dont plot x vs x
+        if "phase" in k.lower():
+            v = detrend_signal(data[xkey].flatten(), v.flatten(), do_plot)
+            data_[k] = v # assing detrendend phase
+        peaks_id, peaks_annot = _find_peaks(v, guessid, window_size)
+        annot.update({k: {"peaks_id": peaks_id,
+                        "peaks_val": v[peaks_id].flatten(),
+                        "peaks_times": data[xkey][peaks_id].flatten(),
+                        "baseline": np.asarray([a[0] for a in peaks_annot]).flatten(),
+                        "rel_change": np.asarray([a[1] for a in peaks_annot]).flatten()
+                        }})
+    annot = utils.annotate_dframe(annot)
+    return data_, annot
 
 def correct_for_current(data, sel = None, ncorr = 1, window_size = 100):
     """ Try to correct for jumps in current
