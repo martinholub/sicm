@@ -10,6 +10,7 @@ from scipy.signal import detrend
 from scipy import stats
 
 from sicm.utils import utils
+from sicm import plots
 from sicm.filters import LowPassButter
 from math import ceil
 
@@ -28,7 +29,7 @@ class Picker(object):
 def level_plane(X, Y, Z, is_debug = False, interactive = True):
     """Level Tilted Plane
 
-    Sleection of pints for plane fitting is done interactively to deal with
+    Selection of pints for plane fitting is done interactively to deal with
     less predictable surface topography. The functions must be called from console (not from ipynb) to work properly.
 
     Parameters
@@ -116,59 +117,112 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True):
 
     return (X_sq, Y_sq , Z_sq_corr)
 
-def detrend_signal(x, y, do_plot = True):
-    """ Detrends Data
+class Signal(object):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
-    References
-    ------------
-    [1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.linregress.html
-    [2]: https://gist.github.com/junzis/e06eca03747fc194e322
-    """
-    # Obtain main trend from data with low pass filter,
-    lpb = LowPassButter()
-    y_filt = lpb.filter(y, cutoff = .5, fs = 10, order = 3)
-    # Fit stright line to the the trend, remove artifacts from beginning
-    cutid = len(y)//10
-    x_ = x - x[0] # start from zero on time axis
-    m, b, _, _, _ = stats.linregress(x_[cutid:], y_filt[cutid:])
-    trend = m*x_ + b
-    # substratct the trend from data.
-    ret = y - (m*x_) # -b
-    # ret = detrend(sig, type = "linear")
-    # Show diagnostic plot.
-    if do_plot:
-        plot_detrend_diagnose(y, y_filt, trend, ret, x_, cutid)
-    return ret
+    def detrend_signal(self, do_plot = True):
+        """ Detrends Data
 
-def plot_detrend_diagnose(orig, filt, trend, ret, x, cutid = 100):
-    """Plot intermediate steps of detrending process
+        References
+        ------------
+        [1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.linregress.html
+        [2]: https://gist.github.com/junzis/e06eca03747fc194e322
+        """
+        x = self.x; y = self.y
+        # Obtain main trend from data with low pass filter,
+        lpb = LowPassButter()
+        y_filt = lpb.filter(y, cutoff = .5, fs = 10, order = 3)
+        # Fit stright line to the the trend, remove artifacts from beginning
+        cutid = len(y)//10
+        x_ = x - x[0] # start from zero on time axis
+        m, b, _, _, _ = stats.linregress(x_[cutid:], y_filt[cutid:])
+        trend = m*x_ + b
+        # substratct the trend from data.
+        ret = y - (m*x_) # -b
+        # ret = detrend(sig, type = "linear")
+        # Show diagnostic plot.
+        if do_plot:
+            self.plot_detrend_diagnose(y_filt, trend, ret, x_, cutid)
+        self.detrend = ret
+        return ret
 
-    If it looks like detrending is not doing what it is supposed to, you should
-    adjust values of cutoff, fs and order parameters.
-    """
-    plt.style.use("seaborn")
-    fig, axs = plt.subplots(nrows = 1, ncols = 2, figsize = (2*6.4, 4.8))
-    axs.flatten()
-    fig.suptitle("Detrending Diagnostic Plot", size  = 16, y = 0.96)
-    for y, fmt, l in zip( (orig, filt, trend, ret),
-                        ("b-", "k-", "g--", "r-"),
-                        ("original", "filtered", "trend", "final")):
-        axs[0].plot(x[0:cutid], y[0:cutid], fmt, alpha = 0.2)
-        axs[0].plot(x[cutid:], y[cutid:], fmt, alpha = 0.5, label = l)
-        axs[1].plot(x[cutid:], y[cutid:], fmt, alpha = 0.5, label = l)
-    axs[0].axvline(x[cutid], color = "gray", linestyle = ":", label = "cutid")
-    axs[0].set_title("Full range")
-    axs[1].set_title("Detail after cutid")
-    for ax in axs:
-        ax.set_xlabel("Time [s]")
-        ax.set_ylabel(r"$\theta$ [$\degree$]")
-        ax.legend()
+    def plot_detrend_diagnose(self, filt, trend, ret, x, cutid = 100):
+        """Plot intermediate steps of detrending process
 
-def correlate_signals(data, xkey, ykeys):
+        If it looks like detrending is not doing what it is supposed to, you should
+        adjust values of cutoff, fs and order parameters.
+        """
+        orig = self.y
+
+        plt.style.use("seaborn")
+        fig, axs = plt.subplots(nrows = 1, ncols = 2, figsize = (2*6.4, 4.8))
+        axs.flatten()
+        fig.suptitle("Detrending Diagnostic Plot", size  = 16, y = 0.96)
+        for y, fmt, l in zip( (orig, filt, trend, ret),
+                            ("b-", "k-", "g--", "r-"),
+                            ("original", "filtered", "trend", "final")):
+            axs[0].plot(x[0:cutid], y[0:cutid], fmt, alpha = 0.2)
+            axs[0].plot(x[cutid:], y[cutid:], fmt, alpha = 0.5, label = l)
+            axs[1].plot(x[cutid:], y[cutid:], fmt, alpha = 0.5, label = l)
+        axs[0].axvline(x[cutid], color = "gray", linestyle = ":", label = "cutid")
+        axs[0].set_title("Full range")
+        axs[1].set_title("Detail after cutid")
+        for ax in axs:
+            ax.set_xlabel("Time [s]")
+            ax.set_ylabel(r"$\theta$ [$\degree$]")
+            ax.legend()
+
+    def get_noise_level(self, range = None):
+        """Obtain noise level from data
+
+        Data should be suplied as x,y pair to the class constructor. Noise level is
+        quantified as standard deviation `(std=sqrt(mean(abs(x - mean(x)**2)))`.
+
+        Parameters
+        ------------
+        range: array-like
+            Sequence of length 2, indicating section of data to use. If float,
+            assumed to be given in data values, if int, assumed to be indices to array.
+
+        Returns:
+        --------
+        noise: float
+            Noise level, in same units as data.
+
+        """
+        if range is not None:
+            assert isinstance(range, (list, tuple, np.ndarray))
+            assert len(range) == 2
+
+            if isinstance(range[0], (float)):
+                keep_id = np.logical_and(self.x > range[0], self.x <= range[-1])
+                yy = np.asarray(self.y)[keep_id]
+                xx = self.x[keep_id]
+            elif isinstance(range[0], (int)):
+                yy = np.asarray(self.y)[range[0]:range[-1]]
+                xx = self.x[range[0]:range[-1]]
+            else:
+                raise ValueError("Supplied range must be either int or float.")
+        else:
+            yy = self.y
+            xx = self.x
+
+        noise = np.std(yy)
+        leg = "Noise level <x>: {:.3f} pA".format(noise*1e12)
+        plots.plot_generic([xx], [yy*1e9], ["time [s]"], ["Current [nA]"], leg,
+                            "noise_level")
+        self.noise = noise
+
+def correlate_signals(data, ykeys):
     """correlate_signals
 
     Correlates signals described by ykeys
     """
+    assert isinstance(ykeys, (list, tuple, np.ndarray))
+    assert len(ykeys) == 2
+
     y0 = data[ykeys[0]].flatten()
     y1 = data[ykeys[1]].flatten()
     cc = np.corrcoef(y0, y1)
@@ -257,7 +311,8 @@ def annotate_peaks(data, xkey, guessid, window_size = 50, do_plot = False):
     for i, (k, v) in enumerate(data.items()):
         if k == xkey: continue # dont plot x vs x
         if "phase" in k.lower():
-            v = detrend_signal(data[xkey].flatten(), v.flatten(), do_plot)
+            sig = Signal(x = data[xkey].flatten(), y = v.flatten())
+            v = sig.detrend_signal(do_plot)
             data_[k] = v # assing detrendend phase
         peaks_id, peaks_annot = _find_peaks(v, guessid, window_size)
         annot.update({k: {"peaks_id": peaks_id,

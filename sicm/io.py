@@ -14,6 +14,7 @@ def load_result(files = [], exp_name = ""):
     """
     result = {}
     for f in files:
+        import pdb; pdb.set_trace()
         name = re.search(exp_name + "_(.*).tsv", os.path.basename(f)).group(1)
         name = name.replace(" ", "")
         with open(f, "r") as rf:

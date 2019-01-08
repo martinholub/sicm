@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from os.path import abspath
 
 class SubArgParser(ArgumentParser):
     """Subclass of ArgumentParser with default values"""
@@ -13,9 +14,10 @@ class SubArgParser(ArgumentParser):
         self.add_argument("-w", "--what", dest = "what", action = "store",
                         help = "What to plot?", choices = ["lockin", "scan"],
                         default = "scan", type = str.lower)
-        # self.add_argument("-i", "--input", dest = "input", action = "store",
-        #                 help = "Path to file where replacements will be made", required = True,
-        #                 type = path_normalizer)
-        # self.add_argument("-w", "--what", dest = "what", action = "store",
-        #                 type = str, default = "sheets", choices = ["sheets", "book"],
-        #                 help = "Output individual sheets as csv or book as ods?")
+        self.add_argument(  "-c", "--correct", dest = "do_correct", action="store_true",
+                            help = "Apply correction for jump in current?")
+        self.add_argument("datadir", action = "store", default = "./",
+                        help = "Path to data directory [default='./']",
+                        type = abspath)
+        self.add_argument("exp_name", action = "store", type = str,
+                        help = "Name of the experiment, for 'what=lockin' must also include extension")

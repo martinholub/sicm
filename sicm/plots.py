@@ -34,7 +34,10 @@ def plot_hopping_scan(result , sel = None, exp_name = "exp", date = "00/00/0000 
     fig.suptitle("Hopping Scan", size = 20, y = 0.92)
 
     if sel is None:
-        sel = np.arange(0, len(result["LineNumber"]))
+        try:
+            sel = np.arange(0, len(result["LineNumber"]))
+        except KeyError as e:
+            sel = np.arange(0, len(result["Current1(A)"]))
     if "time(s)" not in result.keys():
         result["time(s)"] = np.cumsum(result["dt(s)"])
 
@@ -54,25 +57,37 @@ def plot_hopping_scan(result , sel = None, exp_name = "exp", date = "00/00/0000 
     except KeyError as e:
         plot_mock(axs[1])
 
-    axs[2].plot(result["LineNumber"][sel], result["Z(um)"][sel])
-    axs[2].legend(["{} @ {}".format(exp_name, date)])
-    axs[2].set_xlabel("LineNumber")
-    axs[2].set_ylabel("z [um]")
+    try:
+        axs[2].plot(result["LineNumber"][sel], result["Z(um)"][sel])
+        axs[2].legend(["{} @ {}".format(exp_name, date)])
+        axs[2].set_xlabel("LineNumber")
+        axs[2].set_ylabel("z [um]")
+    except KeyError as e:
+        plot_mock(axs[2])
 
-    axs[3].plot(result["time(s)"][sel], result["Z(um)"][sel])
-    axs[3].legend(["{} @ {}".format(exp_name, date)])
-    axs[3].set_xlabel("time [s]")
-    axs[3].set_ylabel("z [um]")
+    try:
+        axs[3].plot(result["time(s)"][sel], result["Z(um)"][sel])
+        axs[3].legend(["{} @ {}".format(exp_name, date)])
+        axs[3].set_xlabel("time [s]")
+        axs[3].set_ylabel("z [um]")
+    except KeyError as e:
+        plot_mock(axs[3])
 
-    axs[4].plot(result["LineNumber"][sel],  result["X(um)"][sel])
-    axs[4].legend(["{} @ {}".format(exp_name, date)])
-    axs[4].set_xlabel("LineNumber")
-    axs[4].set_ylabel("x [um]")
+    try:
+        axs[4].plot(result["LineNumber"][sel],  result["X(um)"][sel])
+        axs[4].legend(["{} @ {}".format(exp_name, date)])
+        axs[4].set_xlabel("LineNumber")
+        axs[4].set_ylabel("x [um]")
+    except KeyError as e:
+        plot_mock(axs[4])
 
-    axs[5].plot(result["LineNumber"][sel],  result["Y(um)"][sel])
-    axs[5].legend(["{} @ {}".format(exp_name, date)])
-    axs[5].set_xlabel("LineNumber")
-    axs[5].set_ylabel("y [um]")
+    try:
+        axs[5].plot(result["LineNumber"][sel],  result["Y(um)"][sel])
+        axs[5].legend(["{} @ {}".format(exp_name, date)])
+        axs[5].set_xlabel("LineNumber")
+        axs[5].set_ylabel("y [um]")
+    except KeyError as e:
+        plot_mock(axs[5])
 
     # Plot also results from lockin
     subkeys =  [("time(s)", "LockinPhase"), ("time(s)", "LockinAmplitude")]
@@ -80,10 +95,11 @@ def plot_hopping_scan(result , sel = None, exp_name = "exp", date = "00/00/0000 
     subresult = {k:v[sel] for k,v in result.items() if k in sel_keys}
     plot_lockin(subresult, subkeys, name = exp_name, date = date)
 
-def plot_surface(result):
+def plot_surface(result, do_correct = True):
     """Plot surface as contours and 3D"""
 
-    result = analysis.correct_for_current(result)
+    if do_correct:
+        result = analysis.correct_for_current(result)
 
     X = np.squeeze(result["X(um)"])
     Y = np.squeeze(result["Y(um)"])
@@ -246,9 +262,7 @@ def plot_approach(  data, xkey, guessid = np.array([]),
     ax.legend(handles, labels, bbox_to_anchor = (.65, .2), frameon = True)
     plt.show()
 
-    # sigs = [s for s in data_.keys() if s.lower().startswith(("_", "current"))]
-    # analysis.correlate_signals(data_, xkey, sigs)
-def plot_generic(Xs, Ys, x_labs, y_labs, legend, fname):
+def plot_generic(Xs, Ys, x_labs, y_labs, legend, fname = None):
     """Generic ploting function
 
     This is an attempt of generic function that produces publication quality
@@ -281,7 +295,8 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend, fname):
     ax.legend(legend, fontsize = ax.xaxis.label.get_size()-2,
                 borderaxespad = 1.1)
 
-    utils.save_fig(fname)
+    if fname is not None:
+        utils.save_fig(fname)
     # recover plotting style
     mpl.rcParams.update(mpl.rcParamsDefault)
 
