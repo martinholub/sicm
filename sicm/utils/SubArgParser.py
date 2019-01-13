@@ -1,6 +1,11 @@
 from argparse import ArgumentParser
 from os.path import abspath
 
+def float_or_none(x):
+    if x is not None:
+        x = float(x)
+    return x
+
 class SubArgParser(ArgumentParser):
     """Subclass of ArgumentParser with default values"""
     def __init__(self, *args, **kwargs):
@@ -21,3 +26,10 @@ class SubArgParser(ArgumentParser):
                         type = abspath)
         self.add_argument("exp_name", action = "store", type = str,
                         help = "Name of the experiment, for 'what=lockin' must also include extension")
+        self.add_argument("-x", "--xrange", dest = "xrange", action = "store",
+                        help= "Two numbers for low and high X defining range to retain.",
+                        nargs = 2, type = float_or_none)
+
+        self.add_argument("-y", "--yrange", dest = "yrange", action = "store",
+                        help= "Two numbers for low and high Y defining range to retain.",
+                        nargs = 2, type = float_or_none)

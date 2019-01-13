@@ -1,0 +1,112 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from copy import deepcopy
+
+from sicm import analysis, plots
+from .experiment import Experiment
+from ..measurements.hops import Hops
+
+
+class Scan(Experiment):
+    """"""
+    def __init__(self, datadir, exp_name, x_trim = None, y_trim = None, do_correct = False):
+        super(Scan, self).__init__(datadir, exp_name)
+        self.dsdata = self._trim_dsdata(x_trim, y_trim)
+        self.dsdata = self._correct_dsdata(do_correct)
+
+    def _trim_dsdata(self, x_trim, y_trim):
+        data = self.dsdata
+        if not y_trim: y_trim = None
+        if not x_trim: x_trim = None
+
+        if y_trim or x_trim is not None:
+            X = np.squeeze(data["X(um)"])
+            Y = np.squeeze(data["Y(um)"])
+            Z = np.squeeze(data["Z(um)"])
+
+            if x_trim is None:
+                keep_idx = [True]*len(X)
+            else:
+                keep_idx = np.logical_and(X > x_trim[0], X <= x_trim[-1])
+            if y_trim is None:
+                keep_idy = [True]*len(Y)
+            else:
+                keep_idy = np.logical_and(Y > y_trim[0], Y <= y_trim[-1])
+
+            keep_id = np.logical_and(keep_idx, keep_idy)
+
+            trim_data = deepcopy(data)
+            trim_data["X(um)"] = X[keep_id]
+            trim_data["Y(um)"] = Y[keep_id]
+            trim_data["Z(um)"] = Z[keep_id]
+
+            return trim_data
+        else:
+            return data
+
+    def _correct_dsdata(self, do_correct):
+        if do_correct:
+            result = analysis.correct_for_current(self.dsdata)
+            return result
+        else:
+            return self.dsdata
+
+    def plot_hopping_scan(self, sel = None):
+        """Plot results of hopping scan
+
+        If data is aquired with QTF setup, voltage and current are not available.
+        """
+        exp_name  = self.name
+        date = self.date
+        plots.plot_sicm(self.dsdata, sel, "Hopping Scan", exp_name, date)
+
+    def plot_hops(self, sel = None, savedir = None):
+        """todo"""
+        hop = Hops(self.data, self.idxs, self.name, self.date)
+        hop.plot(sel)
+
+    def annotate_peaks(self, sel = None, window_size = 250):
+        """todo"""
+        hop = Hops(self.data, self.idxs, self.name, self.date)
+        _, _ = hop.annotate_peaks(sel, window_size = window_size, save_dir = self.datadir,
+                                    do_plot = True)
+
+    def plot_surface(self):
+        """Plot surface as contours and 3D"""
+
+        result = self.dsdata
+        X = np.squeeze(result["X(um)"])
+        Y = np.squeeze(result["Y(um)"])
+        Z = np.squeeze(result["Z(um)"])
+
+        # Level Z coordinates and convert to matrix with proper ordering
+        X_sq, Y_sq, Z_sq = analysis.level_plane(X, Y, Z, True)
+        npoints = len(Z_sq.flatten())
+
+        plt.style.use("seaborn")
+        fig = plt.figure(figsize = (12, 10))
+        fig.tight_layout()
+
+        # Filled countour with triangulation
+        ax = fig.add_subplot(2, 2, 1)
+        C = ax.tricontourf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='viridis')
+        CB = fig.colorbar(C)
+        ax.set_xlabel('X(um)')
+        ax.set_ylabel('Y(um)')
+        ax.set_title('Z(um)')
+
+        ax = fig.add_subplot(2, 2, 2, projection='3d')
+        # Surface in 3D projection
+        ax.plot_trisurf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='viridis')
+        ax.set_xlabel('X(um)')
+        ax.set_ylabel('Y(um)')
+        ax.set_zlabel('Z(um)')
+        # Filled contours without triangulation
+        ax = fig.add_subplot(2, 2, 3)
+        C = ax.contourf(X_sq, Y_sq, Z_sq, cmap='viridis')
+        CB = fig.colorbar(C)
+        ax.set_xlabel('X(um)')
+        ax.set_ylabel('Y(um)')
+        ax.set_title('Z(um)')
+
+        plt.show()

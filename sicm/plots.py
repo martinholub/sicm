@@ -22,22 +22,20 @@ def plot_mock(ax):
             fontsize = "xx-large",
             verticalalignment="center", transform=ax.transAxes)
 
-def plot_hopping_scan(result , sel = None, exp_name = "exp", date = "00/00/0000 00:00"):
-    """Plot results of hopping scan
+def plot_sicm(result, sel, title = "SICM Plot", exp_name = None, date = "00/00/0000"):
+    """Generic SICM plot"""
 
-    If data is aquired with QTF setup, voltage and current are not available.
-    """
     plt.style.use("seaborn")
 
     fig, axs = plt.subplots(nrows = 3, ncols = 2, figsize = (10, 15))
     axs = axs.flatten()
-    fig.suptitle("Hopping Scan", size = 20, y = 0.92)
+    fig.suptitle(title, size = 20, y = 0.92)
 
     if sel is None:
         try:
             sel = np.arange(0, len(result["LineNumber"]))
         except KeyError as e:
-            sel = np.arange(0, len(result["Current1(A)"]))
+            sel = np.arange(0, len(next(iter(data.values()))))
     if "time(s)" not in result.keys():
         result["time(s)"] = np.cumsum(result["dt(s)"])
 
@@ -94,47 +92,6 @@ def plot_hopping_scan(result , sel = None, exp_name = "exp", date = "00/00/0000 
     sel_keys = set([y for x in subkeys for y in x])
     subresult = {k:v[sel] for k,v in result.items() if k in sel_keys}
     plot_lockin(subresult, subkeys, name = exp_name, date = date)
-
-def plot_surface(result, do_correct = True):
-    """Plot surface as contours and 3D"""
-
-    if do_correct:
-        result = analysis.correct_for_current(result)
-
-    X = np.squeeze(result["X(um)"])
-    Y = np.squeeze(result["Y(um)"])
-    Z = np.squeeze(result["Z(um)"])
-
-    # Level Z coordinates and convert to matrix with proper ordering
-    X_sq, Y_sq, Z_sq = analysis.level_plane(X, Y, Z, True)
-
-    plt.style.use("seaborn")
-    fig = plt.figure(figsize = (12, 10))
-    fig.tight_layout()
-
-    # Filled countour with triangulation
-    ax = fig.add_subplot(2, 2, 1)
-    C = ax.tricontourf(X, Y, Z_sq.flatten() , cmap='viridis')
-    CB = fig.colorbar(C)
-    ax.set_xlabel('X(um)')
-    ax.set_ylabel('Y(um)')
-    ax.set_title('Z(um)')
-
-    ax = fig.add_subplot(2, 2, 2, projection='3d')
-    # Surface in 3D projection
-    ax.plot_trisurf(X, Y , Z_sq.flatten(), cmap='viridis')
-    ax.set_xlabel('X(um)')
-    ax.set_ylabel('Y(um)')
-    ax.set_zlabel('Z(um)')
-    # Filled contours without triangulation
-    ax = fig.add_subplot(2, 2, 3)
-    C = ax.contourf(X_sq, Y_sq, Z_sq, cmap='viridis')
-    CB = fig.colorbar(C)
-    ax.set_xlabel('X(um)')
-    ax.set_ylabel('Y(um)')
-    ax.set_title('Z(um)')
-
-    plt.show()
 
 def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None,
                 xlog = False):
@@ -194,72 +151,6 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
             # axs[i].set_title(" ".join(labels[k[1]].split(" ")[:-1]))
         except KeyError as e:
             plot_mock(axs[i])
-    plt.show()
-
-def plot_approach(  data, xkey, guessid = np.array([]),
-                    name = None, date = None):
-    """Plots all keys in data against x-key
-
-    As plot lockin but on a single plot. Bit of code duplication, but gives
-    flexibility later.
-
-    References
-    -----------
-    [1]: https://matplotlib.org/examples/axes_grid/demo_parasite_axes2.html
-    [2]: https://matplotlib.org/gallery/ticks_and_spines/multiple_yaxis_with_spines.html
-    """
-
-    assert isinstance(xkey, (str, )), "xkey must be a string"
-    assert xkey in data.keys(), "xkey must be in data"
-
-    # Create single plot with three axis
-    plt.style.use("seaborn")
-    fig, ax = plt.subplots(figsize = (6.4*1.5, 4.8))
-    plt.subplots_adjust(right = 0.75)
-    axs = [ax] + list(map(lambda x: x.twinx(), [ax]*(len(data) - 2)))
-
-    # Adjust the right-most axis
-    axs[-1].spines["right"].set_position(("axes", 1.2))
-    axs[-1].get_yaxis().get_offset_text().set_x(1.3)
-    utils.make_patch_spines_invisible(axs[-1])
-    axs[-1].spines["right"].set_visible(True)
-
-    # Add name to figure
-    if name is None:
-        text = r"I-$\theta$-z relation"
-    else:
-        text = os.path.splitext(name)[0]
-    if date:
-        text = "{} @ {}".format(text, date)
-    fig.suptitle(text, size = 16, y = 0.96)
-
-    fmts = ["k-", "r-", "g-"]
-    handles = []
-    labels = []
-    data_, annot = analysis.annotate_peaks(data, xkey, guessid, do_plot = True)
-    for i, (k, v) in enumerate(data_.items()):
-        if k == xkey: continue # dont plot x vs x
-        peaks_id = annot[k.lstrip("_")]["peaks_id"]
-        try:
-            axs[i].plot(data_[xkey], v, fmts[i], label = k, alpha = .5)
-            this_color = fmts[i][0]
-            axs[i].plot(data_[xkey][peaks_id], v[peaks_id], alpha = 1,
-                        linestyle = "", marker = "*", markersize = 10,
-                        markerfacecolor = this_color)
-
-            if i == 0: axs[i].set_xlabel(xkey)
-            axs[i].set_ylabel(k, color = this_color)
-            axs[i].tick_params("y", colors = this_color)
-            axs[i].grid(axis = "y", color = this_color,
-                        alpha = .3, linewidth = .5, linestyle = ":")
-            h, l = axs[i].get_legend_handles_labels()
-            handles.extend(h)
-            labels.extend(l)
-            # axs[i].set_title(" ".join(labels[k[1]].split(" ")[:-1]))
-        except KeyError as e:
-            plot_mock(axs[i])
-    # Combine legends and show.
-    ax.legend(handles, labels, bbox_to_anchor = (.65, .2), frameon = True)
     plt.show()
 
 def plot_generic(Xs, Ys, x_labs, y_labs, legend, fname = None):
