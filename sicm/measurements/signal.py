@@ -2,7 +2,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-from scipy.signal import detrend
+from scipy.signal import detrend, welch, periodogram
 from scipy import stats
 
 from sicm.utils import utils
@@ -66,11 +66,10 @@ class Signal(object):
             ax.set_ylabel(r"$\theta$ [$\degree$]")
             ax.legend()
 
-    def get_noise_level(self, range = None):
-        """Obtain noise level from data
+    def analyze(self, range = None, what = "noise"):
+        """Analyze data
 
-        Data should be suplied as x,y pair to the class constructor. Noise level is
-        quantified as standard deviation `(std=sqrt(mean(abs(x - mean(x)**2)))`.
+        Data should be suplied as x,y pair to the class constructor.
 
         Parameters
         ------------
@@ -80,8 +79,6 @@ class Signal(object):
 
         Returns:
         --------
-        noise: float
-            Noise level, in same units as data.
 
         """
         if range is not None:
@@ -101,8 +98,71 @@ class Signal(object):
             yy = self.y
             xx = self.x
 
+        if what == "noise":
+            self._get_noise_level(xx, yy)
+        if what == "psd":
+            self._get_psd(xx, yy)
+
+    def _get_noise_level(self, xx, yy):
+        """Obtain noise level from data
+
+        Noise level is quantified as standard deviation
+        `(std=sqrt(mean(abs(x - mean(x)**2)))`.
+
+        Parameters
+        ------------
+        xx: array-like
+        yy: array-like
+
+        Returns:
+        --------
+        noise: float
+            Noise level, in same units as data.
+        """
         noise = np.std(yy)
-        leg = "Noise level <x>: {:.3f} pA".format(noise*1e12)
-        plots.plot_generic([xx], [yy*1e9], ["time [s]"], ["Current [nA]"], leg,
+        if np.max(np.abs(yy)) < 1.0:
+            leg = "Noise level <x>: {:.3f} pA".format(noise*1e12)
+            y_lab = "Current [nA]"
+            yy *= 1e9
+        else:
+            leg = r"Noise level <x>: {:.3f}$\degree$".format(noise)
+            y_lab = r"Phase [$\degree$]"
+
+        plots.plot_generic([xx], [yy], ["time [s]"], [y_lab], leg,
                             "noise_level")
         self.noise = noise
+
+    def _get_psd(self, xx, yy):
+        """Obtain and plot power spectral density
+
+        Apply PSD analysis to timeseries (xx, yy). This function is used to estimate
+        noise RMS and its frequency. Should be adjusted for different purposes.
+
+        Parameters
+        ------------
+        xx: array-like
+        yy: array-like
+
+        Returns:
+        --------
+        noise: float
+            Noise level, in same units as data.
+        """
+        fs = 1 / np.diff(xx)[0]
+        f, Pyy_spec = welch(yy, fs, window = "hamming", nperseg = 64,
+                            detrend = "constant", scaling = "spectrum",
+                            return_onesided = True)
+
+        max_val = np.max(np.sqrt(Pyy_spec))
+        max_f = f[np.argmax(Pyy_spec)]
+
+        if np.max(np.abs(yy)) < 1.0:
+            leg = "Noise RMS: {:.3f} pA @ f: {:.3f} Hz".format(max_val*1e12, max_f)
+            y_lab = "log Spectrum [A RMS]"
+        else:
+            leg = r"Noise RMS: {:.3f}$\degree$ @ f: {:.3f} Hz".format(max_val, max_f)
+            y_lab = r"log Spectrum [$\degree$ RMS]"
+
+        plots.plot_generic([f], [(np.sqrt(Pyy_spec))], ["f [Hz]"],
+                            [y_lab], leg)
+        self.noise = np.sqrt(Pyy_spec)

@@ -4,6 +4,7 @@ import os
 from copy import deepcopy
 from textwrap import wrap
 import itertools
+import re
 
 import matplotlib as mpl
 from matplotlib import pyplot as plt
@@ -125,7 +126,8 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
              "x": "x-value [V]", "y": "y-value [V]",
              "LockinAmplitude": "LockIn amplitude [V]",
              "LockinPhase": r"LockIn $\theta$ [rad]",
-             "time(s)": "time [s]"}
+             "time(s)": "time [s]",
+             "grid": "grid"}
 
     plt.style.use("seaborn")
     fig, axs = plt.subplots(nrows, ncols, squeeze = False,
@@ -139,7 +141,6 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
     if date:
         text = "{} @ {}".format(text, date)
     fig.suptitle(text, size  = 16, y = 0.96)
-
     for i, k in enumerate(keys):
         try:
             axs[i].plot(data[k[0]], data[k[1]])
@@ -180,6 +181,8 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend, fname = None):
         line = ax.plot(x, y, fmt)
         ax.set_xlabel(x_lab)
         ax.set_ylabel(y_lab)
+        if re.match("log( ?|\()", x_lab, re.IGNORECASE): ax.set_xscale("log")
+        if re.match("log( ?|\()", y_lab, re.IGNORECASE): ax.set_yscale("log")
 
     if not isinstance(legend, (list, tuple)): legend = [legend]
     legend = ['\n'.join(wrap(l, 20)) for l in legend]

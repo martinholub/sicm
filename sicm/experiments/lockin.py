@@ -1,16 +1,22 @@
 # TODO: Lot of work left to finish here
+import numpy as np
+import os
+from copy import deepcopy
+import matplotlib.pyplot as plt
+
+from sicm import analysis, plots, io
 
 class LockIn(object):
     """LockIn class"""
-    def __init__(self, datadir, file, chunk = 0):
+    def __init__(self, datadir, file = "dev662_demods_0_sample_00000.csv", chunk = 0):
         self.name = os.path.split(datadir)[-1]
         self.data, self.date = self._load_data(datadir, file, chunk)
         self.R_out = 50 # Resistance on output, 50 Ohm by default
 
-    def load_data(self, datadir, file, chunk = 0):
+    def _load_data(self, datadir, file, chunk = 0):
         """Load chunk from fname from datadir
         """
-        result, date = io.load_data_lockin(datadir, fname, chunk)
+        result, date = io.load_data_lockin(datadir, file, chunk)
         return result, date
 
     def plot(self, keypairs = None, xlog = False):
@@ -44,10 +50,10 @@ class LockIn(object):
         """
         # Make sure you always trim from full dataset
         if not hasattr(self, "data_full"):
-            self.data_full = copy.deepcopy(self.data)
+            self.data_full = deepcopy(self.data)
         else:
-            self.data = copy.deepcopy(self.data_full)
-        this_data = copy.deepcopy(self.data)
+            self.data = deepcopy(self.data_full)
+        this_data = deepcopy(self.data)
 
         #Get the range of frequencies we trim to
         if not frange: frange = [0, -1]
@@ -57,7 +63,7 @@ class LockIn(object):
 
         # Trim the data
         keep_id = np.logical_and(f >= frange[0], f <= frange[-1])
-        for k, v in copy.deepcopy(self.data).items():
+        for k, v in deepcopy(self.data).items():
             this_data[k] = v[keep_id]
 
         # Assign and check that data has been trimmed
