@@ -35,7 +35,10 @@ def get_files(datadir, exp_name):
 
     Fetches a time of modification of the files.
     """
-    files = glob.glob(os.path.join(datadir, exp_name + "*.tsv"))
+    all_files = glob.glob(os.path.join(datadir, exp_name + "*.tsv"))
+    # Discard files with similar basename
+    r = re.compile(exp_name + "_(.*).tsv")
+    files = [f for f in all_files if r.search(f)]
     dates = [os.path.getmtime(f) for f in files]
     t = time.localtime(min(dates))
     date = "{:02d}/{:02d}/{:04d} {:02d}:{:02d}".format(t.tm_mday, t.tm_mon, t.tm_year,

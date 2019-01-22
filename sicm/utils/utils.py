@@ -5,8 +5,10 @@ import os
 
 def save_fig(fname):
     """Helper to save figures"""
-    fname = fname.replace(" ", "_").replace("/", "").replace(":", "").replace(".", "")
-    fname = fname + ".pdf"
+    basename = os.path.basename(fname)
+    dirname = os.path.dirname(fname)
+    basename = basename.replace(" ", "_").replace("/", "").replace(":", "").replace(".", "")
+    fname = os.path.join(dirname, basename + ".pdf")
     plt.savefig(fname, dpi = 300, bbox_inches = "tight")
     print("Saved figure to {}.".format(fname))
 

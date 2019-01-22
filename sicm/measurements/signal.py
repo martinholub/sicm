@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 
@@ -22,7 +23,7 @@ class Signal(object):
         [1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.linregress.html
         [2]: https://gist.github.com/junzis/e06eca03747fc194e322
         """
-        x = self.x; y = self.y
+        x = deepcopy(self.x); y = deepcopy(self.y)
         # Obtain main trend from data with low pass filter,
         lpb = LowPassButter()
         y_filt = lpb.filter(y, cutoff = .5, fs = 10, order = 3)
@@ -46,7 +47,7 @@ class Signal(object):
         If it looks like detrending is not doing what it is supposed to, you should
         adjust values of cutoff, fs and order parameters.
         """
-        orig = self.y
+        orig = deepcopy(self.y)
 
         plt.style.use("seaborn")
         fig, axs = plt.subplots(nrows = 1, ncols = 2, figsize = (2*6.4, 4.8))
@@ -66,7 +67,10 @@ class Signal(object):
             ax.set_ylabel(r"$\theta$ [$\degree$]")
             ax.legend()
 
-    def analyze(self, range = None, what = "noise"):
+    def plot(self, x_lab = "x", y_lab = "y", legend = None, fname = None):
+        plots.plot_generic([self.x], [self.y], [x_lab], [y_lab], legend, fname)
+
+    def analyze(self, range = None, what = "noise", fpath = None):
         """Analyze data
 
         Data should be suplied as x,y pair to the class constructor.
@@ -87,7 +91,7 @@ class Signal(object):
 
             if isinstance(range[0], (float)):
                 keep_id = np.logical_and(self.x > range[0], self.x <= range[-1])
-                yy = np.asarray(self.y)[keep_id]
+                yy = np.squeeze(np.asarray(self.y)[keep_id])
                 xx = self.x[keep_id]
             elif isinstance(range[0], (int)):
                 yy = np.asarray(self.y)[range[0]:range[-1]]
@@ -95,15 +99,15 @@ class Signal(object):
             else:
                 raise ValueError("Supplied range must be either int or float.")
         else:
-            yy = self.y
-            xx = self.x
+            yy = deepcopy(self.y)
+            xx = deepcopy(self.x)
 
         if what == "noise":
-            self._get_noise_level(xx, yy)
+            self._get_noise_level(xx, yy, fpath)
         if what == "psd":
-            self._get_psd(xx, yy)
+            self._get_psd(xx, yy, fpath)
 
-    def _get_noise_level(self, xx, yy):
+    def _get_noise_level(self, xx, yy, fpath):
         """Obtain noise level from data
 
         Noise level is quantified as standard deviation
@@ -128,11 +132,14 @@ class Signal(object):
             leg = r"Noise level <x>: {:.3f}$\degree$".format(noise)
             y_lab = r"Phase [$\degree$]"
 
+        if fpath is not None:
+            fpath += "_noise"
+
         plots.plot_generic([xx], [yy], ["time [s]"], [y_lab], leg,
-                            "noise_level")
+                            fpath)
         self.noise = noise
 
-    def _get_psd(self, xx, yy):
+    def _get_psd(self, xx, yy, fpath):
         """Obtain and plot power spectral density
 
         Apply PSD analysis to timeseries (xx, yy). This function is used to estimate
@@ -155,7 +162,6 @@ class Signal(object):
 
         max_val = np.max(np.sqrt(Pyy_spec))
         max_f = f[np.argmax(Pyy_spec)]
-
         if np.max(np.abs(yy)) < 1.0:
             leg = "Noise RMS: {:.3f} pA @ f: {:.3f} Hz".format(max_val*1e12, max_f)
             y_lab = "log Spectrum [A RMS]"
@@ -163,6 +169,9 @@ class Signal(object):
             leg = r"Noise RMS: {:.3f}$\degree$ @ f: {:.3f} Hz".format(max_val, max_f)
             y_lab = r"log Spectrum [$\degree$ RMS]"
 
+        if fpath is not None:
+            fpath += "_psd"
+
         plots.plot_generic([f], [(np.sqrt(Pyy_spec))], ["f [Hz]"],
-                            [y_lab], leg)
+                            [y_lab], leg, fpath)
         self.noise = np.sqrt(Pyy_spec)

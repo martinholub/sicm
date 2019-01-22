@@ -49,7 +49,7 @@ class Hops(object):
         idxs = idxs - sel[0]
         return subresult, idxs
 
-    def plot(self,  sel = None, xkey = "time(s)", savedir = "./"):
+    def plot(self,  sel = None, xkey = "time(s)", fname = None):
         """Plots all keys in data against x-key
 
         As plot lockin but on a single plot. Bit of code duplication, but gives
@@ -115,6 +115,9 @@ class Hops(object):
                 plot_mock(axs[i])
         # Combine legends and show.
         ax.legend(handles, labels, bbox_to_anchor = (.65, .2), frameon = True)
+
+        if fname is not None:
+            utils.save_fig(fname)
         plt.show()
 
 

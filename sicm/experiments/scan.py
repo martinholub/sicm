@@ -60,10 +60,15 @@ class Scan(Experiment):
         date = self.date
         plots.plot_sicm(self.dsdata, sel, "Hopping Scan", exp_name, date)
 
-    def plot_hops(self, sel = None, savedir = None):
+    def plot_hops(self, sel = None, do_save = True):
         """todo"""
+        if do_save:
+            fpath = self.get_fpath()
+        else:
+            fpath = None
+            
         hop = Hops(self.data, self.idxs, self.name, self.date)
-        hop.plot(sel)
+        hop.plot(sel, fname = fpath)
 
     def annotate_peaks(self, sel = None, window_size = 250):
         """todo"""

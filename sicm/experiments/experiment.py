@@ -1,5 +1,6 @@
 import numpy as np
 from sicm import io
+from os import path
 
 class Experiment(object):
     """Base class for all experiments"""
@@ -8,6 +9,7 @@ class Experiment(object):
         self.datadir = datadir
         data, self.date = self._load_data(datadir, exp_name)
         self.data, self.dsdata, self.idxs = self._downsample_data(data)
+        self._data = data
 
     def _load_data(self, datadir, exp_name):
         # Get files
@@ -29,3 +31,15 @@ class Experiment(object):
             result = data
 
         return result, dsdata, idxs
+
+    def _get_timestamp(self):
+        tstamp = self.date.replace("/", "").replace(":", "").replace(" ", "_")
+        return tstamp
+
+    def _get_fname(self):
+        fname = "{}_{}".format(self.name, self._get_timestamp())
+        return fname
+
+    def get_fpath(self):
+        fpath = path.normpath(path.join(self.datadir, self._get_fname()))
+        return fpath

@@ -154,7 +154,7 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
             plot_mock(axs[i])
     plt.show()
 
-def plot_generic(Xs, Ys, x_labs, y_labs, legend, fname = None):
+def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None):
     """Generic ploting function
 
     This is an attempt of generic function that produces publication quality
@@ -184,10 +184,11 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend, fname = None):
         if re.match("log( ?|\()", x_lab, re.IGNORECASE): ax.set_xscale("log")
         if re.match("log( ?|\()", y_lab, re.IGNORECASE): ax.set_yscale("log")
 
-    if not isinstance(legend, (list, tuple)): legend = [legend]
-    legend = ['\n'.join(wrap(l, 20)) for l in legend]
-    ax.legend(legend, fontsize = ax.xaxis.label.get_size()-2,
-                borderaxespad = 1.1)
+    if legend is not None:
+        if not isinstance(legend, (list, tuple)): legend = [legend]
+        legend = ['\n'.join(wrap(l, 20)) for l in legend]
+        ax.legend(legend, fontsize = ax.xaxis.label.get_size()-2,
+                    borderaxespad = 1.1)
 
     if fname is not None:
         utils.save_fig(fname)
