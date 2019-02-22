@@ -174,6 +174,11 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None):
     fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."])
     fmts = ["".join(x) for x in fmts_prod]
 
+    if len(x_labs) <= len(Xs):
+        x_labs = x_labs + [x_labs[-1]] * (len(Xs) - len(x_labs))
+    if len(y_labs) <= len(Ys):
+        y_labs = y_labs + [y_labs[-1]] * (len(Ys) - len(y_labs))
+
     fig = plt.figure(figsize = (4.5, 4.5))
     ax = fig.add_subplot(1, 1, 1)
     fmts = fmts[0:len(Xs[0])]
@@ -186,8 +191,8 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None):
 
     if legend is not None:
         if not isinstance(legend, (list, tuple)): legend = [legend]
-        legend = ['\n'.join(wrap(l, 20)) for l in legend]
-        ax.legend(legend, fontsize = ax.xaxis.label.get_size()-2,
+        legend = ['\n'.join(wrap(l, 20)) if not l.startswith("$") else l for l in legend ]
+        ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
                     borderaxespad = 1.1)
 
     if fname is not None:

@@ -33,7 +33,7 @@ class SICMModel(object):
         """Calculate pipette resistance
 
         Pipette resistance is always present and gives bound on current,
-        I_max = U/R_p.
+        I_max = U/R_p. r_p/h is tan(alpha) where alpha is inner opening angle.
 
         Parameters
         ---------
@@ -101,34 +101,49 @@ class SICMModel(object):
         """
         # dont treat these as free variables
         r_i = self.r_i
-        r_o = self.r_o
-        U = self.U
+
         # Assume you know what a good guess is, based on analytical modoel
-        guess = (self.r_p, self.h, self.kappa)
+        guess = (np.arctan(self.r_p / self.h) * 180/np.pi, self.r_o)
 
         def _inverse_fit(i, *params):
             """Fit inverted approach
 
-            Fits function that yields distance for value of current
+            Fits function that yields distance for value of current. If fitting fails
+            try to narrow the data range, this makes it easier to fit a functional
+            relationship.
             """
-            r_p, h, kappa = params
-            R_p = h / (kappa*r_p*r_i*np.pi)
-            # d = f(i)
-            ## use for unscaled x, y with guess = [r_p, h, kappa]
-            ## or for scaled x=x/(2*r_i), y=y/y_max with guess=[r_p,h*r_i,kappa/np.sqrt((y_max/U))]
-            d = (i * 1.5 * np.log(r_i/r_o)*r_p*r_i) / (h*(i-U/R_p))
+            ## OLD VERSION 1 - Delete at next revision --------------------------
+            # guess = (self.r_p, self.h, self.kappa)
+            # r_p, h, kappa = params
+            # R_p = h / (kappa*r_p*r_i*np.pi)
+            ## d = f(i)
+            # d = (i * 1.5 * np.log(r_i/r_o)*r_p*r_i) / (h*(i-U/R_p))
+            # d = (1.5 * np.log(r_i/r_o)*r_p*r_i) / (h*(1-U/(R_p*i)))
 
-            # d/(2*r_i) = f(i/R_p)
+            ## OLD VERSION 2 - Delete at next revision---------------------------
+            ## d/(2*r_i) = f(i/R_p)
             ## use this if you fit to scaled values x/(2*r_i), y= y/y_max
             ## with guess = [r_p, h, kappa]
             ## parameters FOR SURE loose physical meaning, thus above approach prefered
             # d = (3*i*R_p*np.log(r_o/r_i)*r_p)/(4*h*(U-R_p*i))
+
+            ## CURRENT VERSION - Parametrs have physical meaning ----------------
+            alpha, r_o = params
+            tan_alpha = np.tan(alpha * np.pi/180) # convert to radians
+            ## unscaled
+            # R_p = (1 / (np.pi * kappa * r_i)) * (1 / tan_alpha) # pipette resistance
+            # d = (1.5 * np.log(r_i/r_o)*r_i) / (1-U/(R_p*i)) * tan_alpha
+            ## scaled d/(2*r_i) and i/i_max
+            d = (0.75 * np.log(r_i/r_o)) / (1-(1/i)) * tan_alpha
+            ## DEBUG Switched d and i, for debuggign only -----------------------
+            # d = (1 + 1.5 * np.log(r_o/r_i) * tan_alpha / i)**(-1) # switch d and i
+
             return d
 
         return _inverse_fit, guess
 
 
-    def fit_approach(self, y, x, guess = None):
+    def fit_approach(self, y, x, guess = None, double_ax = True):
         """Fits inverted approach
 
         Parameters
@@ -149,8 +164,9 @@ class SICMModel(object):
         except AttributeError as e:
             print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
 
-        popt, _ = curve_fit(fun, x, y, p0 = guess_, maxfev = np.int(1e7),
+        popt, _ = curve_fit(fun, x, y, p0 = guess_, maxfev = np.int(1e6),
                             # bounds = ([1e-21, 1e-21, 1e-21], [np.inf, np.inf, np.inf]),
+                            # bounds = ([0, 0], [np.inf, 1]),
                             method = "lm") # only lm works well
 
         end_time = timeit.default_timer()
@@ -158,7 +174,7 @@ class SICMModel(object):
         print("Finished in {:.3f} s".format(end_time - start_time))
         self.popt = popt
 
-        self.plot_fit(y, x, double_ax = True)
+        self.plot_fit(y, x, double_ax = double_ax)
 
     def predict(self, x, popt = None):
         """Evaluate fitted function at value(s) x
