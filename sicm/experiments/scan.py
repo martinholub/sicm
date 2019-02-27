@@ -13,6 +13,7 @@ class Scan(Experiment):
         super(Scan, self).__init__(datadir, exp_name)
         self.dsdata = self._trim_dsdata(x_trim, y_trim)
         self.dsdata = self._correct_dsdata(do_correct)
+        self._report_xy_extents()
 
     def _trim_dsdata(self, x_trim, y_trim):
         data = self.dsdata
@@ -51,6 +52,23 @@ class Scan(Experiment):
         else:
             return self.dsdata
 
+    def _report_xy_extents(self):
+        """Report extents on XY axis
+
+        Assumes that superclass assigns property _data, which holds all data
+        obtained from TSV files.
+        """
+        print("Veryfying X, Y extents:")
+        print("xmax: {}, xmin: {},\nymax: {}, ymin: {}\nxdiff: {}, ydiff: {}".\
+              format(
+                    self._data["X(um)"].max(),
+                    self._data["X(um)"].min(),
+                    self._data["Y(um)"].max(),
+                    self._data["Y(um)"].min(),
+                    self._data["X(um)"].max() - self._data["X(um)"].min(),
+                    self._data["Y(um)"].max() - self._data["Y(um)"].min()))
+
+
     def plot_hopping_scan(self, sel = None):
         """Plot results of hopping scan
 
@@ -66,7 +84,7 @@ class Scan(Experiment):
             fpath = self.get_fpath()
         else:
             fpath = None
-            
+
         hop = Hops(self.data, self.idxs, self.name, self.date)
         hop.plot(sel, fname = fpath)
 
