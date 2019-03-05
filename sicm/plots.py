@@ -28,9 +28,10 @@ def plot_sicm(result, sel, title = "SICM Plot", exp_name = None, date = "00/00/0
 
     plt.style.use("seaborn")
 
-    fig, axs = plt.subplots(nrows = 3, ncols = 2, figsize = (10, 15))
+    fig, axs = plt.subplots(nrows = 5, ncols = 2, figsize = (10, 20))
     axs = axs.flatten()
-    fig.suptitle(title, size = 20, y = 0.92)
+    title = title + "\n" + "{} @ {}".format(exp_name, date)
+    fig.suptitle(title, size = 18, y = 0.94)
 
     if sel is None:
         try:
@@ -42,7 +43,6 @@ def plot_sicm(result, sel, title = "SICM Plot", exp_name = None, date = "00/00/0
 
     try:
         axs[0].plot(result["time(s)"][sel], result["V1(V)"][sel])
-        axs[0].legend(["{} @ {}".format(exp_name, date)])
         axs[0].set_xlabel("time [s]")
         axs[0].set_ylabel("potential [V]")
     except KeyError as e:
@@ -50,7 +50,6 @@ def plot_sicm(result, sel, title = "SICM Plot", exp_name = None, date = "00/00/0
 
     try:
         axs[1].plot(result["time(s)"][sel], result["Current1(A)"][sel])
-        axs[1].legend(["{} @ {}".format(exp_name, date)])
         axs[1].set_xlabel("time [s]")
         axs[1].set_ylabel("current [A]")
     except KeyError as e:
@@ -58,7 +57,6 @@ def plot_sicm(result, sel, title = "SICM Plot", exp_name = None, date = "00/00/0
 
     try:
         axs[2].plot(result["LineNumber"][sel], result["Z(um)"][sel])
-        axs[2].legend(["{} @ {}".format(exp_name, date)])
         axs[2].set_xlabel("LineNumber")
         axs[2].set_ylabel("z [um]")
     except KeyError as e:
@@ -66,7 +64,6 @@ def plot_sicm(result, sel, title = "SICM Plot", exp_name = None, date = "00/00/0
 
     try:
         axs[3].plot(result["time(s)"][sel], result["Z(um)"][sel])
-        axs[3].legend(["{} @ {}".format(exp_name, date)])
         axs[3].set_xlabel("time [s]")
         axs[3].set_ylabel("z [um]")
     except KeyError as e:
@@ -74,19 +71,45 @@ def plot_sicm(result, sel, title = "SICM Plot", exp_name = None, date = "00/00/0
 
     try:
         axs[4].plot(result["LineNumber"][sel],  result["X(um)"][sel])
-        axs[4].legend(["{} @ {}".format(exp_name, date)])
         axs[4].set_xlabel("LineNumber")
         axs[4].set_ylabel("x [um]")
     except KeyError as e:
         plot_mock(axs[4])
 
     try:
-        axs[5].plot(result["LineNumber"][sel],  result["Y(um)"][sel])
-        axs[5].legend(["{} @ {}".format(exp_name, date)])
-        axs[5].set_xlabel("LineNumber")
-        axs[5].set_ylabel("y [um]")
+        axs[5].plot(result["time(s)"][sel],  result["X(um)"][sel])
+        axs[5].set_xlabel("time [s]")
+        axs[5].set_ylabel("x [um]")
     except KeyError as e:
         plot_mock(axs[5])
+
+    try:
+        axs[6].plot(result["LineNumber"][sel],  result["Y(um)"][sel])
+        axs[6].set_xlabel("LineNumber")
+        axs[6].set_ylabel("y [um]")
+    except KeyError as e:
+        plot_mock(axs[6])
+
+    try:
+        axs[7].plot(result["time(s)"][sel],  result["Y(um)"][sel])
+        axs[7].set_xlabel("time [s]")
+        axs[7].set_ylabel("y [um]")
+    except KeyError as e:
+        plot_mock(axs[7])
+
+    try:
+        axs[8].plot(result["X(um)"][sel],  result["Y(um)"][sel])
+        axs[8].set_xlabel("x [um]")
+        axs[8].set_ylabel("y [um]")
+    except KeyError as e:
+        plot_mock(axs[8])
+
+    try:
+        axs[9].plot(result["time(s)"][sel],  result["LineNumber"][sel])
+        axs[9].set_xlabel("time [s]")
+        axs[9].set_ylabel("LineNumber")
+    except KeyError as e:
+        plot_mock(axs[9])
 
     # Plot also results from lockin
     subkeys =  [("time(s)", "LockinPhase"), ("time(s)", "LockinAmplitude")]

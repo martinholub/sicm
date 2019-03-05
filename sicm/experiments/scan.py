@@ -118,18 +118,19 @@ class Scan(Experiment):
         ax.set_ylabel('Y(um)')
         ax.set_title('Z(um)')
 
-        ax = fig.add_subplot(2, 2, 2, projection='3d')
         # Surface in 3D projection
+        ax = fig.add_subplot(2, 2, 2, projection='3d')
         ax.plot_trisurf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='viridis')
         ax.set_xlabel('X(um)')
         ax.set_ylabel('Y(um)')
         ax.set_zlabel('Z(um)')
-        # Filled contours without triangulation
-        ax = fig.add_subplot(2, 2, 3)
-        C = ax.contourf(X_sq, Y_sq, Z_sq, cmap='viridis')
-        CB = fig.colorbar(C)
-        ax.set_xlabel('X(um)')
-        ax.set_ylabel('Y(um)')
-        ax.set_title('Z(um)')
+
+        # # Filled contours without triangulation
+        # ax = fig.add_subplot(2, 2, 3)
+        # C = ax.contourf(X_sq, Y_sq, Z_sq, cmap='viridis')
+        # CB = fig.colorbar(C)
+        # ax.set_xlabel('X(um)')
+        # ax.set_ylabel('Y(um)')
+        # ax.set_title('Z(um)')
 
         plt.show()

@@ -51,12 +51,17 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True):
       *https://matplotlib.org/api/collections_api.html#matplotlib.collections.Collection
 
     """
-    # Reshape to square matrix, flip every second column
-    ## flipping enables `contourf` plot
+    # TODO: allow non-square matrices
+    # Reshape to square matrix
     a = np.int(np.sqrt(len(Z)))
-    X_sq = np.reshape(X[:a**2], [a]*2); X_sq[1::2, :] = X_sq[1::2, ::-1]
-    Y_sq = np.reshape(Y[:a**2], [a]*2); Y_sq[1::2, :] = Y_sq[1::2, ::-1]
-    Z_sq = np.reshape(Z[:a**2], [a]*2); Z_sq[1::2, :] = Z_sq[1::2, ::-1]
+    X_sq = np.reshape(X[:a**2], [a]*2);
+    Y_sq = np.reshape(Y[:a**2], [a]*2);
+    Z_sq = np.reshape(Z[:a**2], [a]*2);
+
+    ## flip every second column; enables `contourf` plot
+    #X_sq[1::2, :] = X_sq[1::2, ::-1]
+    #Y_sq[1::2, :] = Y_sq[1::2, ::-1]
+    #Z_sq[1::2, :] = Z_sq[1::2, ::-1]
 
     if interactive:
         # Select points interactively
@@ -67,6 +72,7 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True):
             ax.scatter(X_sq.flatten(), Y_sq.flatten(), Z_sq.flatten(),
                         c = Z_sq.flatten(), marker = "^", picker = 5,
                         alpha = 0.3, cmap = "viridis")
+            ax.set_xlabel("X [um]"); ax.set_ylabel("Y [um]"); ax.set_zlabel("Z [um]")
             picker = Picker()
             cid = fig.canvas.mpl_connect("pick_event", picker.onpick)
             plt.show()
