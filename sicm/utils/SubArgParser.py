@@ -19,8 +19,12 @@ class SubArgParser(ArgumentParser):
         self.add_argument("-w", "--what", dest = "what", action = "store",
                         help = "What to plot?", choices = ["lockin", "scan"],
                         default = "scan", type = str.lower)
-        self.add_argument(  "-c", "--correct", dest = "do_correct", action="store_true",
+        self.add_argument(  "--correct", dest = "do_correct", action="store_true",
                             help = "Apply correction for jump in current?")
+        self.add_argument(  "--constant_distance", dest = "is_constant_distance",
+                            action="store_true", help = "Is the scan obtained at constant distance?")
+        self.add_argument(  "--current", dest = "plot_current",
+                            action="store_true", help = "Plot current on Z axis?")
         self.add_argument("datadir", action = "store", default = "./",
                         help = "Path to data directory [default='./']",
                         type = abspath)

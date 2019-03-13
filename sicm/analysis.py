@@ -26,7 +26,7 @@ class Picker(object):
         print("x:{}, y:{}, z:{}".format(x[ind], y[ind], z[ind]))
         self.picks.append({ind: (x[ind], y[ind], z[ind])})
 
-def level_plane(X, Y, Z, is_debug = False, interactive = True):
+def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
     """Level Tilted Plane
 
     Selection of pints for plane fitting is done interactively to deal with
@@ -72,7 +72,7 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True):
             ax.scatter(X_sq.flatten(), Y_sq.flatten(), Z_sq.flatten(),
                         c = Z_sq.flatten(), marker = "^", picker = 5,
                         alpha = 0.3, cmap = "viridis")
-            ax.set_xlabel("X [um]"); ax.set_ylabel("Y [um]"); ax.set_zlabel("Z [um]")
+            ax.set_xlabel("X [um]"); ax.set_ylabel("Y [um]"); ax.set_zlabel(z_lab)
             picker = Picker()
             cid = fig.canvas.mpl_connect("pick_event", picker.onpick)
             plt.show()

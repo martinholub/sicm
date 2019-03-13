@@ -9,8 +9,9 @@ data_dir = args.datadir
 exp_name = args.exp_name
 if args.what == "scan":
     # You should run this from command line for interactive plotting to work properly
-    scan = Scan(data_dir, exp_name, args.do_correct, args.yrange, args.xrange)
-    scan.plot_surface()
+    scan = Scan(data_dir, exp_name, args.do_correct, args.yrange, args.xrange,
+                args.is_constant_distance)
+    scan.plot_surface(args.plot_current)
 
 # elif args.what == "lockin":
 #     # Data loc

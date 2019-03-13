@@ -8,9 +8,14 @@ from ..measurements.hops import Hops
 
 
 class Scan(Experiment):
-    """"""
-    def __init__(self, datadir, exp_name, x_trim = None, y_trim = None, do_correct = False):
-        super(Scan, self).__init__(datadir, exp_name)
+    """SCAN Object
+
+    TODO:
+        - allow downsampling if too many datapoints
+    """
+    def __init__(self, datadir, exp_name, x_trim = None, y_trim = None, do_correct = False,
+                is_constant_distance = False):
+        super(Scan, self).__init__(datadir, exp_name, is_constant_distance)
         self.dsdata = self._trim_dsdata(x_trim, y_trim)
         self.dsdata = self._correct_dsdata(do_correct)
         self._report_xy_extents()
@@ -23,7 +28,6 @@ class Scan(Experiment):
         if y_trim or x_trim is not None:
             X = np.squeeze(data["X(um)"])
             Y = np.squeeze(data["Y(um)"])
-            Z = np.squeeze(data["Z(um)"])
 
             if x_trim is None:
                 keep_idx = [True]*len(X)
@@ -37,9 +41,8 @@ class Scan(Experiment):
             keep_id = np.logical_and(keep_idx, keep_idy)
 
             trim_data = deepcopy(data)
-            trim_data["X(um)"] = X[keep_id]
-            trim_data["Y(um)"] = Y[keep_id]
-            trim_data["Z(um)"] = Z[keep_id]
+            for k,v in data.items():
+                trim_data[k] = v[keep_id]
 
             return trim_data
         else:
@@ -94,16 +97,21 @@ class Scan(Experiment):
         _, _ = hop.annotate_peaks(sel, window_size = window_size, save_dir = self.datadir,
                                     do_plot = True)
 
-    def plot_surface(self):
+    def plot_surface(self, plot_current = False):
         """Plot surface as contours and 3D"""
 
         result = self.dsdata
         X = np.squeeze(result["X(um)"])
         Y = np.squeeze(result["Y(um)"])
-        Z = np.squeeze(result["Z(um)"])
+        if self.is_constant_distance or plot_current:
+            Z = np.squeeze(result["Current1(A)"])
+            z_lab = "Current1(A)"
+        else:
+            Z = np.squeeze(result["Z(um)"])
+            z_lab = "Z(um)"
 
         # Level Z coordinates and convert to matrix with proper ordering
-        X_sq, Y_sq, Z_sq = analysis.level_plane(X, Y, Z, True)
+        X_sq, Y_sq, Z_sq = analysis.level_plane(X, Y, Z, True, z_lab = z_lab)
         npoints = len(Z_sq.flatten())
 
         plt.style.use("seaborn")
@@ -116,14 +124,14 @@ class Scan(Experiment):
         CB = fig.colorbar(C)
         ax.set_xlabel('X(um)')
         ax.set_ylabel('Y(um)')
-        ax.set_title('Z(um)')
+        ax.set_title(z_lab)
 
         # Surface in 3D projection
         ax = fig.add_subplot(2, 2, 2, projection='3d')
         ax.plot_trisurf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='viridis')
         ax.set_xlabel('X(um)')
         ax.set_ylabel('Y(um)')
-        ax.set_zlabel('Z(um)')
+        ax.set_zlabel(z_lab)
 
         # # Filled contours without triangulation
         # ax = fig.add_subplot(2, 2, 3)

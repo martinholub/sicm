@@ -81,6 +81,8 @@ def downsample_to_linenumber(result = {}, lineno = -1, which = "last"):
         ret_idx = np.argwhere(tf_diff == -1)
     elif which == "first":
         ret_idx = np.argwhere(tf_diff == 1)
+    else:
+        ret_idx = idx # Select all with this line number
     # Get indices to the sub'idx'ed array
     ret_idx = np.nonzero(np.in1d(idx, ret_idx))[0]
 
@@ -89,7 +91,7 @@ def downsample_to_linenumber(result = {}, lineno = -1, which = "last"):
             result_out["time(s)"] = np.cumsum(v)[idx]
         result_out[k] = v[idx]
 
-    print("Number of datapoints = {}".format(len(idx)))
+    print("Number of datapoints = {}".format(len(ret_idx)))
 
     return(result_out, ret_idx)
 
