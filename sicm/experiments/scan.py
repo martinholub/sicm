@@ -109,9 +109,16 @@ class Scan(Experiment):
         else:
             Z = np.squeeze(result["Z(um)"])
             z_lab = "Z(um)"
-
+        # https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
+        try:
+            if get_ipython().__class__.__name__ == "ZMQInteractiveShell":
+                is_interactive = False # jupyter
+            else:
+                is_interactive = True # ipython
+        except NameError as e:
+            is_interactive = True # command line
         # Level Z coordinates and convert to matrix with proper ordering
-        X_sq, Y_sq, Z_sq = analysis.level_plane(X, Y, Z, True, z_lab = z_lab)
+        X_sq, Y_sq, Z_sq = analysis.level_plane(X, Y, Z, True, is_interactive, z_lab = z_lab)
         npoints = len(Z_sq.flatten())
 
         plt.style.use("seaborn")

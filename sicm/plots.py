@@ -177,7 +177,7 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
             plot_mock(axs[i])
     plt.show()
 
-def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None):
+def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = None):
     """Generic ploting function
 
     This is an attempt of generic function that produces publication quality
@@ -194,8 +194,9 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None):
                 "ytick.left": True,
                 "ytick.direction": "in"}
     mpl.rcParams.update(params)
-    fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."])
-    fmts = ["".join(x) for x in fmts_prod]
+    if fmts is None:
+        fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."])
+        fmts = ["".join(x) for x in fmts_prod]
 
     if len(x_labs) <= len(Xs):
         x_labs = x_labs + [x_labs[-1]] * (len(Xs) - len(x_labs))
@@ -254,8 +255,12 @@ def boxplot_generic(x, x_labs = None, y_lab = None, legend = None, fname = None)
 
     fig = plt.figure(figsize = (4.5, 4.5))
     ax = fig.add_subplot(1, 1, 1)
-    bxplt = ax.boxplot(x, labels = x_labs, medianprops = {"color": "black", "linestyle": '-.'})
+    bxplt = ax.boxplot( x, labels = x_labs, showmeans = True, meanline = True,
+                        medianprops = {"color": "black", "linestyle": '-.'},
+                        meanprops = {"color": "gray", "linestyle": ':'})
     ax.set_ylabel(y_lab)
+    if np.mean(x) < 0.05:
+        ax.set_yscale("log")
 
     # legend
     if legend is not None:

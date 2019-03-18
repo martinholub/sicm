@@ -34,7 +34,8 @@ class Experiment(object):
 
             dsdata = {k:v[idxs] for k,v in result.items()}
         except Exception as e:
-            print(e + "\n All points will be used.")
+            msg = "{} : {}".format(type(e).__name__, e.args)
+            print(msg + "\nAll points will be used.")
             idxs = np.arange(0, len(next(iter(data.values()))))
             data["time(s)"] = np.cumsum(data["dt(s)"]) # TODO: Make more robust.
             dsdata = data

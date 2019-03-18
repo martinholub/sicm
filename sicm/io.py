@@ -163,10 +163,14 @@ def load_comsol(fname):
                     date_ = re.match("Date:\s+(.*)$", line).group(0)
                 headline = line
                 continue
-
             if n_dpoints == 0:
                 rsub = re.compile("\s{3,}") # replace repeated spaces with tabs
                 headline = list(filter(None, re.sub(rsub, "\t", headline).split("\t")))
+                # extremely dirty way how to deal with the fact that comsol has
+                # variable field separator.
+                unit = "(A)"
+                l_end = headline.pop()
+                headline.extend([l + unit for l in l_end.split(unit)[:-1]])
             vals = list(filter(None, re.sub("\s+", "\t", line).split("\t")))
             x = np.float32(vals[0])
             y = tuple(map(np.float32, tuple(vals[1:])))

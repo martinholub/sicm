@@ -62,7 +62,6 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
     #X_sq[1::2, :] = X_sq[1::2, ::-1]
     #Y_sq[1::2, :] = Y_sq[1::2, ::-1]
     #Z_sq[1::2, :] = Z_sq[1::2, ::-1]
-
     if interactive:
         # Select points interactively
         with mpl.rc_context(rc={'interactive': True}):
@@ -85,6 +84,7 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
         p2 = np.asarray(vals[1])
         p3 = np.asarray(vals[2])
     else:
+        # TODO: Implement plane fitting
         p1 = np.asarray(((X_sq[1, 1], Y_sq[1, 1], Z_sq[1, 1])))
         p2 = np.asarray((X_sq[1, a-1], Y_sq[1,a-1], Z_sq[1, a-1]))
         p3 = np.asarray((X_sq[a-1, 1], Y_sq[a-1, 1], Z_sq[a-1, 1]))

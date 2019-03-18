@@ -1,5 +1,6 @@
 import numpy as np
 from copy import deepcopy
+import os
 
 import matplotlib.pyplot as plt
 
@@ -11,9 +12,19 @@ from sicm import plots
 from sicm.filters import LowPassButter
 
 class Signal(object):
-    def __init__(self, x, y):
+    def __init__(self, x, y, datadir = None, exp_name = None):
         self.x = x
         self.y = y
+        self.datadir = datadir
+        self.exp_name = exp_name
+
+    def get_fpath(self):
+        """Make filename"""
+        try:
+            fname = os.path.join(self.datadir, self.exp_name)
+        except TypeError as e:
+            fname = None
+        return fname
 
     def detrend_signal(self, do_plot = True):
         """ Detrends Data
@@ -67,7 +78,12 @@ class Signal(object):
             ax.set_ylabel(r"$\theta$ [$\degree$]")
             ax.legend()
 
-    def plot(self, x_lab = "x", y_lab = "y", legend = None, fname = None):
+    def plot(self, x_lab = "x", y_lab = "y", legend = None):
+        avg = np.mean(self.y)
+        std = np.std(self.y)
+        fname = self.get_fpath()
+        if legend is None:
+            legend = "$\mu$: {:.3E}\n$\sigma$: {:.3E}".format(avg, std)
         plots.plot_generic([self.x], [self.y], [x_lab], [y_lab], legend, fname)
 
     def analyze(self, range = None, what = "noise", fpath = None):

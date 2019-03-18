@@ -7,174 +7,10 @@ from scipy.optimize import curve_fit
 
 import matplotlib.pyplot as plt
 
-class SICMModel(object):
-    """SICM Model
 
-    Model is described by equations (1)-(3) from Chen 2012 [1].
-
-    References
-      [1]: https://doi.org/10.1146/annurev-anchem-062011-143203
-    """
-    def __init__(self, z, U, h, kappa, r_p, r_i, r_o):
-        self.R_p = self._calculate_pipette_resistance(h, kappa, r_p, r_i)
-        self.R_ac = self._calculate_access_resistance(z, kappa, r_o, r_i)
-        self.I = self._calculate_current(U)
-        self.z = z
-        self.r_i = r_i
-        # Assing also other parameters
-        self.r_p = r_p
-        self.r_o = r_o
-        self.h = h
-        self.U = U
-        self.kappa = kappa
-
-
-    def _calculate_pipette_resistance(self, h, kappa, r_p, r_i):
-        """Calculate pipette resistance
-
-        Pipette resistance is always present and gives bound on current,
-        I_max = U/R_p. r_p/h is tan(alpha) where alpha is inner opening angle.
-
-        Parameters
-        ---------
-        h: tip length [m]
-        kappa: conductivity of electrolyte [1/(m*Ohm)]
-        r_p: inner radius of tip base [m]
-        r_i: inner radius of tip openning [m]
-        """
-        R_p = h / (kappa*r_p*r_i*np.pi)
-        return R_p
-
-    def _calculate_access_resistance(self, z, kappa, r_o, r_i):
-        """Calculate access resistance due to proximity of tip to surface
-
-        Parameters
-        ----------
-        z: distance from surface [m]
-        kappa: conductivity of electrolyte [1/(m*Ohm)]
-        r_o: outer radius of the tip opening [m]
-        r_i: inner radius of tip openning [m]
-        """
-        R_ac = 1.5*np.log(r_o/r_i) / (z*kappa*np.pi)
-        return R_ac
-
-    def _calculate_current(self, U):
-        """Calculate current of tip-substrate system
-
-        Parameters
-        ---------
-        U: applied bias [V]
-
-        Returns
-        ----------
-        I: current [A]
-        """
-        I = U / (self.R_p + self.R_ac)
-        return I
-
-    def plot(self, do_invert = False):
-        """Plot analytical relationship
-
-        Parameters
-        --------
-        do_invert: bool
-            Invert x,y axis and plot y vs. x plot
-        """
-        x = self.z/(2*self.r_i) # scale by diameter
-        y = self.I
-        y_max = self.U / self.R_p
-        # y_max = np.max(y) if y[-1] > 0 else np.min(y)
-        leg = "Current-distance relation @ T=298.15K"
-        if do_invert:
-            plots.plot_generic([y/y_max], [x], [r"$I/I_{max}$"], [r"$z/d$"], leg, "inverted I vs. z curve")
-        else:
-            plots.plot_generic([x], [y/y_max], [r"$z/d$"], [r"$I/I_{max}$"], leg, "I vs. z curve")
-
-    def fit_wrapper(self):
-        """A wraper to define fixed parameters in the scope of fitting function
-
-        Decision on which parameters to treat as fixed and which to fit is largely
-        arbitrary. Here the choice is based on ho well the parameters could be related
-        between numerical and analytical mode as the description of the analytcial model
-        does not necessarily clearly indicated what is meant by what parameter.
-
-        """
-        # dont treat these as free variables
-        r_i = self.r_i
-
-        # Assume you know what a good guess is, based on analytical modoel
-        guess = (np.arctan(self.r_p / self.h) * 180/np.pi, self.r_o)
-
-        def _inverse_fit(i, *params):
-            """Fit inverted approach
-
-            Fits function that yields distance for value of current. If fitting fails
-            try to narrow the data range, this makes it easier to fit a functional
-            relationship.
-            """
-            ## OLD VERSION 1 - Delete at next revision --------------------------
-            # guess = (self.r_p, self.h, self.kappa)
-            # r_p, h, kappa = params
-            # R_p = h / (kappa*r_p*r_i*np.pi)
-            ## d = f(i)
-            # d = (i * 1.5 * np.log(r_i/r_o)*r_p*r_i) / (h*(i-U/R_p))
-            # d = (1.5 * np.log(r_i/r_o)*r_p*r_i) / (h*(1-U/(R_p*i)))
-
-            ## OLD VERSION 2 - Delete at next revision---------------------------
-            ## d/(2*r_i) = f(i/R_p)
-            ## use this if you fit to scaled values x/(2*r_i), y= y/y_max
-            ## with guess = [r_p, h, kappa]
-            ## parameters FOR SURE loose physical meaning, thus above approach prefered
-            # d = (3*i*R_p*np.log(r_o/r_i)*r_p)/(4*h*(U-R_p*i))
-
-            ## CURRENT VERSION - Parametrs have physical meaning ----------------
-            alpha, r_o = params
-            tan_alpha = np.tan(alpha * np.pi/180) # convert to radians
-            ## unscaled
-            # R_p = (1 / (np.pi * kappa * r_i)) * (1 / tan_alpha) # pipette resistance
-            # d = (1.5 * np.log(r_i/r_o)*r_i) / (1-U/(R_p*i)) * tan_alpha
-            ## scaled d/(2*r_i) and i/i_max
-            d = (0.75 * np.log(r_i/r_o)) / (1-(1/i)) * tan_alpha
-            ## DEBUG Switched d and i, for debuggign only -----------------------
-            # d = (1 + 1.5 * np.log(r_o/r_i) * tan_alpha / i)**(-1) # switch d and i
-
-            return d
-
-        return _inverse_fit, guess
-
-
-    def fit_approach(self, y, x, guess = None, double_ax = True):
-        """Fits inverted approach
-
-        Parameters
-        -----------
-        y: array-like
-            The values we are trying to fit, dependent data - f(x, ...). Here DISTANCE (z).
-        x: array-like
-            Independent variable where data is measured. Here CURRENT (i).
-        """
-        fun, guess_ = self.fit_wrapper()
-        if guess: # Supply user defined guess
-            guess_ = guess
-
-        #Solve non-linear lsq problem, yielding parama minimizing fun(x,*params)-y
-        start_time = timeit.default_timer()
-        try:
-            print("Fitting {} to {} datapoints ...".format(fun.__qualname__, len(x)))
-        except AttributeError as e:
-            print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
-
-        popt, _ = curve_fit(fun, x, y, p0 = guess_, maxfev = np.int(1e6),
-                            # bounds = ([1e-21, 1e-21, 1e-21], [np.inf, np.inf, np.inf]),
-                            # bounds = ([0, 0], [np.inf, 1]),
-                            method = "lm") # only lm works well
-
-        end_time = timeit.default_timer()
-        print("Found parameters: {}.".format(popt))
-        print("Finished in {:.3f} s".format(end_time - start_time))
-        self.popt = popt
-
-        self.plot_fit(y, x, double_ax = double_ax)
+class Model(object):
+    def __init__(self):
+        pass
 
     def predict(self, x, popt = None):
         """Evaluate fitted function at value(s) x
@@ -182,7 +18,7 @@ class SICMModel(object):
         if popt is None:
             popt = self.popt
 
-        fun, _ = self.fit_wrapper()
+        fun, _ = self._fit_wrapper()
         y_hat = fun(x, *popt)
         return y_hat
 
@@ -248,3 +84,261 @@ class SICMModel(object):
         ax.legend(h1+h2, l1+l2, bbox_to_anchor = (1.3, 1.1), frameon = True)
         # utils.save_fig(text)
         plt.show()
+
+class SICMModel(Model):
+    """SICM Model
+
+    Model is described by equations (1)-(3) from Chen 2012 [1].
+
+    References
+      [1]: https://doi.org/10.1146/annurev-anchem-062011-143203
+    """
+    def __init__(self, z, U, h, kappa, r_p, r_i, r_o):
+        self.R_p = self._calculate_pipette_resistance(h, kappa, r_p, r_i)
+        self.R_ac = self._calculate_access_resistance(z, kappa, r_o, r_i)
+        self.I = self._calculate_current(U)
+        self.z = z
+        self.r_i = r_i
+        # Assing also other parameters
+        self.r_p = r_p
+        self.r_o = r_o
+        self.h = h
+        self.U = U
+        self.kappa = kappa
+        super(SICMModel, self).__init__()
+
+
+    def _calculate_pipette_resistance(self, h, kappa, r_p, r_i):
+        """Calculate pipette resistance
+
+        Pipette resistance is always present and gives bound on current,
+        I_max = U/R_p. r_p/h is tan(alpha) where alpha is inner opening angle.
+
+        Parameters
+        ---------
+        h: tip length [m]
+        kappa: conductivity of electrolyte [1/(m*Ohm)]
+        r_p: inner radius of tip base [m]
+        r_i: inner radius of tip openning [m]
+        """
+        R_p = h / (kappa*r_p*r_i*np.pi)
+        return R_p
+
+    def _calculate_access_resistance(self, z, kappa, r_o, r_i):
+        """Calculate access resistance due to proximity of tip to surface
+
+        Parameters
+        ----------
+        z: distance from surface [m]
+        kappa: conductivity of electrolyte [1/(m*Ohm)]
+        r_o: outer radius of the tip opening [m]
+        r_i: inner radius of tip openning [m]
+        """
+        R_ac = 1.5*np.log(r_o/r_i) / (z*kappa*np.pi)
+        return R_ac
+
+    def _calculate_current(self, U):
+        """Calculate current of tip-substrate system
+
+        Parameters
+        ---------
+        U: applied bias [V]
+
+        Returns
+        ----------
+        I: current [A]
+        """
+        I = U / (self.R_p + self.R_ac)
+        return I
+
+    def plot(self, do_invert = False):
+        """Plot analytical relationship
+
+        Parameters
+        --------
+        do_invert: bool
+            Invert x,y axis and plot y vs. x plot
+        """
+        x = self.z/(2*self.r_i) # scale by diameter
+        y = self.I
+        y_max = self.U / self.R_p
+        # y_max = np.max(y) if y[-1] > 0 else np.min(y)
+        leg = "Current-distance relation @ T=298.15K"
+        if do_invert:
+            plots.plot_generic([y/y_max], [x], [r"$I/I_{max}$"], [r"$z/d$"], leg, "inverted I vs. z curve")
+        else:
+            plots.plot_generic([x], [y/y_max], [r"$z/d$"], [r"$I/I_{max}$"], leg, "I vs. z curve")
+
+    def _fit_wrapper(self):
+        """A wraper to define fixed parameters in the scope of fitting function
+
+        Decision on which parameters to treat as fixed and which to fit is largely
+        arbitrary. Here the choice is based on ho well the parameters could be related
+        between numerical and analytical mode as the description of the analytcial model
+        does not necessarily clearly indicated what is meant by what parameter.
+
+        """
+        # dont treat these as free variables
+        r_i = self.r_i
+
+        # Assume you know what a good guess is, based on analytical modoel
+        guess = (np.arctan(self.r_p / self.h) * 180/np.pi, self.r_o)
+
+        def _inverse_fit(i, *params):
+            """Fit inverted approach
+
+            Fits function that yields distance for value of current. If fitting fails
+            try to narrow the data range, this makes it easier to fit a functional
+            relationship.
+            """
+            ## OLD VERSION 1 - Delete at next revision --------------------------
+            # guess = (self.r_p, self.h, self.kappa)
+            # r_p, h, kappa = params
+            # R_p = h / (kappa*r_p*r_i*np.pi)
+            ## d = f(i)
+            # d = (i * 1.5 * np.log(r_i/r_o)*r_p*r_i) / (h*(i-U/R_p))
+            # d = (1.5 * np.log(r_i/r_o)*r_p*r_i) / (h*(1-U/(R_p*i)))
+
+            ## OLD VERSION 2 - Delete at next revision---------------------------
+            ## d/(2*r_i) = f(i/R_p)
+            ## use this if you fit to scaled values x/(2*r_i), y= y/y_max
+            ## with guess = [r_p, h, kappa]
+            ## parameters FOR SURE loose physical meaning, thus above approach prefered
+            # d = (3*i*R_p*np.log(r_o/r_i)*r_p)/(4*h*(U-R_p*i))
+
+            ## CURRENT VERSION - Parametrs have physical meaning ----------------
+            alpha, r_o = params
+            tan_alpha = np.tan(alpha * np.pi/180) # convert to radians
+            ## unscaled
+            # R_p = (1 / (np.pi * kappa * r_i)) * (1 / tan_alpha) # pipette resistance
+            # d = (1.5 * np.log(r_i/r_o)*r_i) / (1-U/(R_p*i)) * tan_alpha
+            ## scaled d/(2*r_i) and i/i_max
+            d = (0.75 * np.log(r_i/r_o)) / (1-(1/i)) * tan_alpha
+            ## DEBUG Switched d and i, for debuggign only -----------------------
+            # d = (1 + 1.5 * np.log(r_o/r_i) * tan_alpha / i)**(-1) # switch d and i
+
+            return d
+
+        return _inverse_fit, guess
+
+    def fit(self, y, x, guess = None, double_ax = True):
+        """Fits inverted approach
+
+        Parameters
+        -----------
+        y: array-like
+            The values we are trying to fit, dependent data - f(x, ...). Here DISTANCE (z).
+        x: array-like
+            Independent variable where data is measured. Here CURRENT (i).
+        """
+        fun, guess_ = self._fit_wrapper()
+        if guess: # Supply user defined guess
+            guess_ = guess
+
+        #Solve non-linear lsq problem, yielding parama minimizing fun(x,*params)-y
+        start_time = timeit.default_timer()
+        try:
+            print("Fitting {} to {} datapoints ...".format(fun.__qualname__, len(x)))
+        except AttributeError as e:
+            print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
+
+        popt, _ = curve_fit(fun, x, y, p0 = guess_, maxfev = np.int(1e6),
+                            # bounds = ([1e-21, 1e-21, 1e-21], [np.inf, np.inf, np.inf]),
+                            # bounds = ([0, 0], [np.inf, 1]),
+                            method = "lm") # only lm works well
+
+        end_time = timeit.default_timer()
+        print("Found parameters: {}.".format(popt))
+        print("Finished in {:.3f} s".format(end_time - start_time))
+        self.popt = popt
+
+        self.plot_fit(y, x, double_ax = double_ax)
+
+
+class TemperatureModel(Model):
+    """Model of current-distance-temperature dependence"""
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        super(TemperatureModel, self).__init__()
+
+    @property
+    def x(self):
+        """Current relative to the bulk value"""
+        return self._x
+    @x.setter
+    def x(self, value):
+        # Assure current is being passed as relative.
+        if np.max(value) > 1.:
+            print("Scaling data to 0..1 range.")
+            value = value / np.max(value)
+        self._x =  value
+
+    @property
+    def y(self):
+        """Absolute Temperature"""
+        return self._y
+    @y.setter
+    def y(self, value):
+        self._y =  value
+
+    def plot(self, d_sub, r_i, do_invert = False, fname = "I vs. Tsub curve"):
+        """Plot data
+
+        Parameters
+        --------
+        do_invert: bool
+            Invert x,y axis and plot y vs. x plot
+        """
+        y = self.y
+        x = self.x
+        leg = "Current-Substrate temperature relation @ z/d={:.3f}".format(d_sub / (2*r_i))
+        fname = fname + "_{:.3f}".format(d_sub / (2*r_i))
+        if do_invert:
+            plots.plot_generic([y], [x], [r"$T_{sub}$"], [r"$I/I_{bulk}$"], leg, "inverted_"+ fname)
+        else:
+            plots.plot_generic([x], [y], [r"$T_{sub}$"], [r"$I/I_{bulk}$"], leg, fname)
+
+    def _fit_wrapper(self):
+        """"Fit convenience wrapper"""
+        guess = 2.4e-5, 247.8, 140
+        def _exponential_fit(f, *params):
+            """Fit general exponential relationship
+            Parameters
+            -----------
+            f: array-like
+                Relative current
+            params: tuple of floats
+                Parameters of the model
+            """
+            A, B, C = params
+            T = A * np.exp(B / (f - C))
+
+            # for polyfit
+            # A, B = params
+            # T = A * np.log(f) + B
+            return T
+        return _exponential_fit, guess
+
+    def fit(self, guess = None, double_ax = True):
+        fun, guess_ = self._fit_wrapper()
+        x = self.x # relative current
+        y = self.y #/ np.min(self.y) # Temperature
+        if guess is None:
+            guess = guess_
+        #Solve non-linear lsq problem, yielding parama minimizing fun(x,*params)-y
+        start_time = timeit.default_timer()
+        try:
+            print("Fitting {} to {} datapoints ...".format(fun.__qualname__, len(x)))
+        except AttributeError as e:
+            print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
+
+        popt, _ = curve_fit(fun, x, y, p0 = guess, maxfev = np.int(1e6),
+                            method = "lm")
+
+        end_time = timeit.default_timer()
+        print("Found parameters: {}.".format(popt))
+        print("Finished in {:.3f} s".format(end_time - start_time))
+        self.popt = popt
+
+        self.plot_fit(y, x, double_ax = double_ax)
