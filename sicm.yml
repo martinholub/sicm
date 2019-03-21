@@ -90,4 +90,3 @@ dependencies:
   - winpty=0.4.3=4
   - zeromq=4.2.5=he025d50_1
   - zlib=1.2.11=h62dcd97_3
-prefix: C:\Users\mholub\AppData\Local\Continuum\miniconda3\envs\sicm
