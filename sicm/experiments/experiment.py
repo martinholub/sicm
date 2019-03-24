@@ -4,13 +4,24 @@ from os import path
 
 class Experiment(object):
     """Base class for all experiments"""
-    def __init__(self, datadir, exp_name, is_constant_distance = False):
+    def __init__(self, datadir, exp_name, scan_type = "scan"):
         self.name = exp_name
         self.datadir = datadir
-        self.is_constant_distance = is_constant_distance
+        self._assign_scan_parameters(scan_type)
         data, self.date = self._load_data(datadir, exp_name)
         self.data, self.dsdata, self.idxs = self._downsample_data(data)
         self._data = data
+
+    def _assign_scan_parameters(self, scan_type):
+        if scan_type.lower() == "constant_distance":
+            self.is_constant_distance = True
+        else:
+            self.is_constant_distance = False
+
+        if scan_type.lower() == "it":
+            self.is_it = True
+        else:
+            self.is_it = False
 
     def _load_data(self, datadir, exp_name):
         # Get files
@@ -26,6 +37,9 @@ class Experiment(object):
                 # constant_distance scan
                 # starting at 6 is forward, starting at 10 is reverse
                 linenos = np.arange(6, max(uniqs), 6)
+                result, idxs = io.downsample_to_linenumber(data, linenos, "all")
+            elif self.is_it:
+                linenos = np.arange(min(uniqs)+1, max(uniqs), 1)
                 result, idxs = io.downsample_to_linenumber(data, linenos, "all")
             else:
                 # hopping_scan

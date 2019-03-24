@@ -1,4 +1,6 @@
 from sicm.measurements.signal import Signal
+from sicm.measurements.hops import Hops
+from sicm.measurements.dls import DLS, ZetaSizerReader
 from sicm.experiments.approach import Approach
 from sicm.experiments.scan import Scan
 from sicm.experiments.lockin import LockIn

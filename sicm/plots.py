@@ -177,13 +177,7 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
             plot_mock(axs[i])
     plt.show()
 
-def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = None):
-    """Generic ploting function
-
-    This is an attempt of generic function that produces publication quality
-    plots. Parameters have their usual meanings.
-    """
-    # set plotting style
+def _set_rcparams():
     plt.style.use("seaborn-ticks")
     params = {  "font.family": "serif",
                 "font.weight": "normal",
@@ -194,6 +188,17 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
                 "ytick.left": True,
                 "ytick.direction": "in"}
     mpl.rcParams.update(params)
+
+
+def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = None):
+    """Generic ploting function
+
+    This is an attempt of generic function that produces publication quality
+    plots. Parameters have their usual meanings.
+    """
+    # set plotting style
+    _set_rcparams()
+
     if fmts is None:
         fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."])
         fmts = ["".join(x) for x in fmts_prod]
@@ -235,16 +240,7 @@ def boxplot_generic(x, x_labs = None, y_lab = None, legend = None, fname = None)
       [1]: https://stackoverflow.com/a/49689249
     """
     # set plotting style
-    plt.style.use("seaborn-ticks")
-    params = {  "font.family": "serif",
-                "font.weight": "normal",
-                "xtick.labelsize": 10,
-                "ytick.labelsize": 10,
-                "xtick.bottom": False,
-                "xtick.direction": "in",
-                "ytick.left": True,
-                "ytick.direction": "in"}
-    mpl.rcParams.update(params)
+    _set_rcparams()
 
     if x_labs is None:
         try:
@@ -267,9 +263,43 @@ def boxplot_generic(x, x_labs = None, y_lab = None, legend = None, fname = None)
         if not isinstance(legend, (list, tuple)): legend = [legend]
         legend = ['\n'.join(wrap(l, 20)) for l in legend]
         # `handletextpad=-2.0, handlelength=0` hides the marker in legend [1]
-        ax.legend(legend, fontsize = ax.xaxis.label.get_size()-2,
-                    borderaxespad = 1.1,
-                    handletextpad=-2.0, handlelength=0)
+        ax.legend(legend, fontsize = ax.xaxis.label.get_size()-2)
+
+    if fname is not None:
+        utils.save_fig(fname)
+    # recover plotting style
+    mpl.rcParams.update(mpl.rcParamsDefault)
+
+
+def errorplot_generic(  Xs, Ys, Y_errs, x_lab = None, y_lab = None, legend = None,
+                            fname = None):
+    """Generic Errorbar plot function
+    """
+
+    # set plotting style
+    _set_rcparams()
+
+    fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."], ["^", "s", "o"])
+    fmts = ["".join(x) for x in fmts_prod]
+
+    fig = plt.figure(figsize = (4.5, 4.5))
+    ax = fig.add_subplot(1, 1, 1)
+    handles = []
+    for i, (x, y, yerr) in enumerate(zip(Xs, Ys, Y_errs)):
+        ebars = ax.errorbar(x, y, yerr, fmt = fmts[i],
+                            capsize = 2, elinewidth = 1, ecolor = "gray", capthick = 1)
+        handles.append(ebars[0])
+
+    ax.set_ylabel(y_lab)
+    ax.set_xlabel(x_lab)
+    ax.set_xscale("log")
+
+    # legend
+    if legend is not None:
+        if not isinstance(legend, (list, tuple)): legend = [legend]
+        legend = ['\n'.join(wrap(l, 20)) for l in legend]
+        # `handletextpad=-2.0, handlelength=0` hides the marker in legend [1]
+        ax.legend(handles, legend, fontsize = ax.xaxis.label.get_size()-2)
 
     if fname is not None:
         utils.save_fig(fname)

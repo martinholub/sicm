@@ -12,10 +12,14 @@ class Scan(Experiment):
 
     TODO:
         - allow downsampling if too many datapoints
+
+    Parameters
+    -------------
+
     """
     def __init__(self, datadir, exp_name, x_trim = None, y_trim = None, do_correct = False,
-                is_constant_distance = False):
-        super(Scan, self).__init__(datadir, exp_name, is_constant_distance)
+                scan_type = "scan"):
+        super(Scan, self).__init__(datadir, exp_name, scan_type)
         self.dsdata = self._trim_dsdata(x_trim, y_trim)
         self.dsdata = self._correct_dsdata(do_correct)
         self._report_xy_extents()
@@ -89,7 +93,7 @@ class Scan(Experiment):
             fpath = None
 
         hop = Hops(self.data, self.idxs, self.name, self.date)
-        hop.plot(sel, fname = fpath)
+        hop.plot(sel, fname = fpath, do_annotate = not self.is_it)
 
     def annotate_peaks(self, sel = None, window_size = 250):
         """todo"""

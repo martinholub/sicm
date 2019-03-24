@@ -232,3 +232,14 @@ def load_dataframe(fileparts):
     fname = _combine_paths(fileparts)
     df = pd.read_pickle(fname)
     return(df)
+
+def quoted_data_reader(tsvfile):
+    """Generator giving rows in TSV file
+    """
+    with open(tsvfile, encoding = "ISO-8859-1") as tf:
+        reader = csv.reader(tf, dialect="excel-tab")
+        for row in reader:
+            ## this would work if all rows had same length -.-
+            # nested_row = (x.split("\t") for x in row)
+            # yield (y for sublist in nested_row for y in sublist)
+            yield row

@@ -3,12 +3,17 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 
-def save_fig(fname):
-    """Helper to save figures"""
-    basename = os.path.basename(fname)
+
+def make_fname(fname, suffix = "", ext = ".pdf"):
+    basename = os.path.basename(fname) + suffix
     dirname = os.path.dirname(fname)
     basename = basename.replace(" ", "_").replace("/", "").replace(":", "").replace(".", "")
-    fname = os.path.join(dirname, basename + ".pdf")
+    fname = os.path.join(dirname, basename + ext)
+    return fname
+
+def save_fig(fname, suffix = "", ext = ".pdf"):
+    """Helper to save figures"""
+    fname = make_fname(fname, suffix, ext)
     plt.savefig(fname, dpi = 300, bbox_inches = "tight")
     print("Saved figure to {}.".format(fname))
 

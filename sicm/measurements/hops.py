@@ -49,7 +49,7 @@ class Hops(object):
         idxs = idxs - sel[0]
         return subresult, idxs
 
-    def plot(self,  sel = None, xkey = "time(s)", fname = None):
+    def plot(self,  sel = None, xkey = "time(s)", fname = None, do_annotate = True):
         """Plots all keys in data against x-key
 
         As plot lockin but on a single plot. Bit of code duplication, but gives
@@ -91,16 +91,17 @@ class Hops(object):
         fmts = ["k-", "r-", "g-"]
         handles = []
         labels = []
-        data_, annot = self.annotate_peaks(sel, xkey, do_plot = True)
+        data_, annot = self.annotate_peaks(sel, xkey, do_plot = False)
         for i, (k, v) in enumerate(data_.items()):
             if k == xkey: continue # dont plot x vs x
             peaks_id = annot[k.lstrip("_")]["peaks_id"]
             try:
                 axs[i].plot(data_[xkey], v, fmts[i], label = k, alpha = .5)
                 this_color = fmts[i][0]
-                axs[i].plot(data_[xkey][peaks_id], v[peaks_id], alpha = 1,
-                            linestyle = "", marker = "*", markersize = 10,
-                            markerfacecolor = this_color)
+                if do_annotate:
+                    axs[i].plot(data_[xkey][peaks_id], v[peaks_id], alpha = 1,
+                                linestyle = "", marker = "*", markersize = 10,
+                                markerfacecolor = this_color)
 
                 if i == 0: axs[i].set_xlabel(xkey)
                 axs[i].set_ylabel(k, color = this_color)
@@ -151,7 +152,8 @@ class Hops(object):
             if k == xkey: continue # dont plot x vs x
             if "phase" in k.lower():
                 sig = Signal(x = data[xkey].flatten(), y = v.flatten())
-                v = sig.detrend_signal(do_plot)
+                if sel is None:
+                    v = sig.detrend_signal(do_plot)
                 data_[k] = v # assing detrendend phase
             peaks_id, peaks_annot = analysis._find_peaks(v, guessid, window_size)
             annot.update({k: {"peaks_id": peaks_id,
