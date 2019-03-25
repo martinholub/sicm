@@ -223,6 +223,7 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
         legend = ['\n'.join(wrap(l, 20)) if not l.startswith("$") else l for l in legend ]
         ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
                     borderaxespad = 1.1)
+        # bbox_to_anchor=(1.01,1), loc="upper left" # if you need the legend outside            
 
     if fname is not None:
         utils.save_fig(fname)

@@ -43,7 +43,8 @@ class Hops(object):
             X = np.squeeze(self.data["time(s)"])
             sel = np.nonzero(np.logical_and(X > sel[0], X <= sel[-1]))[0]
 
-        subkeys = set(['Z(um)', 'LockinPhase', 'Current1(A)', 'time(s)'])
+        subkeys = ['Z(um)', 'LockinPhase', 'Current1(A)', 'time(s)']
+        subkeys.extend(["LockinAmplitude"]) # comment if not desired
         subresult = {k:v[sel] for k,v in self.data.items() if k in subkeys}
         idxs = self.idxs[np.isin(self.idxs, sel)]
         idxs = idxs - sel[0]
