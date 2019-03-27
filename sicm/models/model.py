@@ -342,3 +342,90 @@ class TemperatureModel(Model):
         self.popt = popt
 
         self.plot_fit(y, x, double_ax = double_ax)
+
+class Medium(object):
+    """Medium in the pipette"""
+    def __init__(self, theta, gamma, rho):
+        self.theta = theta # young's angle; degree
+        self.gamma = gamma # Gas-Liaquid surface tension; N/m
+        self.rho = rho # medium relativve density (e.g rho_water - rho_air); kg/m3
+
+class Pipette(object):
+    """"Pipette Geometry"""
+    def __init__(self, d_body, d_tip,length = None, alpha = None):
+        self.length = length # length of pipette; m
+        self.d_body = d_body # inener diameter of the capillary; m
+        self.d_tip  = d_tip # inner diameter of the tip; m
+        self.alpha = alpha # tip opening angle; degree
+
+class CapillaryAction(object):
+    """Simplified Model of Capillary Action
+    """
+    def __init__(self, medium, pipette):
+        self.medium = medium
+        self.pipette = pipette
+
+    def _calculate_height(self):
+        """Capillary suspension, height
+
+        Calculates medium height, h, that will be supported by pipette geometry and
+        medium properties.
+        """
+        # Laplace pressure at lower meniscus, divided by 2kappa
+        cos = np.cos(np.deg2rad(self.medium.theta - self.pipette.alpha))
+        p_down =  cos / (self.pipette.d_tip / 2)
+        # Laplace presusre at upper meniscus, divided by 2kappa
+        cos = np.cos(np.deg2rad(self.medium.theta))
+        p_up =  cos / (self.pipette.d_body/2)
+        # capillary length
+        kappa = np.sqrt((self.medium.rho * 9.81) / self.medium.gamma)
+        height = 2 / (kappa**2) * (p_down - p_up)
+
+        return height
+
+    def _calculate_alpha(self, height = None):
+        """Capillary suspension, alpha
+
+        Calculates pipette opening angle, alpha, that will support column of
+        medium in pipette.
+        """
+        if height is None:
+            height = self.pipette.length
+            # assume fully filled
+
+        # hydrostatic pressure due to column of height h
+        p_hs = height * self.medium.rho * 9.81
+        # Laplace presusre at upper meniscus
+        cos = np.cos(np.deg2rad(self.medium.theta))
+        p_up = (2 * self.medium.gamma * cos / (self.pipette.d_body/2))
+        # Cosiunus of theta - alpha
+        cos_alpha_hat = (p_hs + p_up) * ((self.pipette.d_tip/2) / (2 * self.medium.gamma))
+        # Pipette opening angle that supports height h, in degrees
+        alpha = self.medium.theta - np.rad2deg(np.arccos(cos_alpha_hat))
+        return alpha
+
+    def _calculate_constriction(self, alpha = None):
+        """Capillary suspension, stopping diameter
+
+        Calculates at which diameter will the liquid stop given column height and
+        properties of pipette and medium.
+        """
+        if alpha is None:
+            alpha = self.pipette.alpha
+        # hydrostatic pressure due to column of height h
+        p_hs = self.pipette.length * self.medium.rho * 9.81
+        # Laplace presusre at upper meniscus
+        cos = np.cos(np.deg2rad(self.medium.theta))
+        p_up = (2 * self.medium.gamma * cos / (self.pipette.d_body/2))
+        # helper factor
+        cos = np.cos(np.deg2rad(self.medium.theta - alpha))
+        aux = 2 * self.medium.gamma * cos
+        # Radius at which the liquid progression will be arested.
+        r_stop = aux / (p_hs + p_up)
+        return 2*r_stop
+
+    def plot(self, x, y = None, x_lab = None, y_lab = None, legend = None, fname = None):
+        """tba"""
+        if y is None:
+            y = self._calculate_alpha()
+        plots.plot_generic([x], [y], [x_lab], [y_lab], legend, fname)
