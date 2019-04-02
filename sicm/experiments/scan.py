@@ -17,8 +17,9 @@ class Scan(Experiment):
     -------------
 
     """
-    def __init__(self, datadir, exp_name, x_trim = None, y_trim = None, do_correct = False,
+    def __init__(self, datadir, exp_name, y_trim = None, x_trim = None, do_correct = False,
                 scan_type = "scan"):
+
         super(Scan, self).__init__(datadir, exp_name, scan_type)
         self.dsdata = self._trim_dsdata(x_trim, y_trim)
         self.dsdata = self._correct_dsdata(do_correct)
@@ -76,6 +77,23 @@ class Scan(Experiment):
                     self._data["Y(um)"].max() - self._data["Y(um)"].min()))
 
 
+    def _downsample_surface_data(self, X, Y, Z, by = 10):
+        """Downsamples data available for plotting by factor `by`
+
+        When plotting scan constant_distance, the data will be plentiful.
+        To ease visualization, we downsample them.
+        """
+        if not isinstance(by, (list, tuple, np.ndarray)):
+            by = np.arange(0, np.prod(X.shape), by)
+        if len(by) >  np.prod(X.shape)*0.05:
+            factor = np.int(len(by) / (np.prod(X.shape)*0.05))
+            by = np.arange(0, np.prod(X.shape), factor)
+        print(  "Downsampled from {} to {} datapoints for `plot_surface`.".\
+                format(np.prod(X.shape), len(by)))
+
+        return X[by], Y[by], Z[by]
+
+
     def plot_hopping_scan(self, sel = None):
         """Plot results of hopping scan
 
@@ -103,11 +121,21 @@ class Scan(Experiment):
 
     def plot_surface(self, plot_current = False):
         """Plot surface as contours and 3D"""
-
         result = self.dsdata
         X = np.squeeze(result["X(um)"])
         Y = np.squeeze(result["Y(um)"])
-        if self.is_constant_distance or plot_current:
+        if self.is_constant_distance:
+            # We care about measurements of current
+            Z = np.squeeze(result["Current1(A)"])
+            z_lab = "Current1(A)"
+            # Pick current values with consistent coordinate only
+            # This works as long as the movemement in Z is just due to noise
+            Z_aux = np.squeeze(result["Z(um)"])
+            uniqs, cnts = np.unique(Z_aux, return_counts = True)
+            to_keep = np.nonzero(Z_aux == uniqs[np.argmax(cnts)])[0]
+            X, Y, Z = self._downsample_surface_data(X, Y, Z, to_keep)
+
+        elif plot_current:
             Z = np.squeeze(result["Current1(A)"])
             z_lab = "Current1(A)"
         else:

@@ -37,6 +37,10 @@ class Experiment(object):
                 # constant_distance scan
                 # starting at 6 is forward, starting at 10 is reverse
                 linenos = np.arange(6, max(uniqs), 6)
+                # if NO_REVERSE, dirty trick for now:
+                guess_lineno_cnts = np.sort(cnts)[-3]
+                linenos = uniqs[np.argwhere(np.logical_and( cnts > guess_lineno_cnts*0.9,
+                                                            cnts < guess_lineno_cnts*1.1))]
                 result, idxs = io.downsample_to_linenumber(data, linenos, "all")
             elif self.is_it:
                 linenos = np.arange(min(uniqs)+1, max(uniqs), 1)
