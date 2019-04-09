@@ -29,7 +29,7 @@ class Experiment(object):
         result = io.load_result(files, exp_name)
         return result, date
 
-    def _downsample_data(self, data):
+    def _downsample_data(self, data, which = "last"):
         # Select Line Number
         try:
             uniqs, cnts = np.unique(data["LineNumber"], return_counts=True)
@@ -48,7 +48,7 @@ class Experiment(object):
             else:
                 # hopping_scan
                 linenos = np.arange(5, max(uniqs), 3)
-                result, idxs = io.downsample_to_linenumber(data, linenos)
+                result, idxs = io.downsample_to_linenumber(data, linenos, which)
 
             dsdata = {k:v[idxs] for k,v in result.items()}
         except Exception as e:

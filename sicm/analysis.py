@@ -62,6 +62,7 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
     #X_sq[1::2, :] = X_sq[1::2, ::-1]
     #Y_sq[1::2, :] = Y_sq[1::2, ::-1]
     #Z_sq[1::2, :] = Z_sq[1::2, ::-1]
+    do_correct = True
     if interactive:
         # Select points interactively
         with mpl.rc_context(rc={'interactive': True}):
@@ -79,50 +80,61 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
             fig.canvas.mpl_disconnect(cid)
             # vals = plt.ginput(3, show_clicks = True) # just for 2D
 
-        vals = [list(x.values())[0] for x in picker.picks]
-        p1 = np.asarray(vals[0])
-        p2 = np.asarray(vals[1])
-        p3 = np.asarray(vals[2])
+        # If no points selected, don't correct for tilt.
+        try:
+            vals = [list(x.values())[0] for x in picker.picks]
+            p1 = np.asarray(vals[0])
+            p2 = np.asarray(vals[1])
+            p3 = np.asarray(vals[2])
+        except IndexError as e:
+            do_correct = False
+            print("No tilt correction done!")
     else:
         # TODO: Implement plane fitting
         p1 = np.asarray(((X_sq[1, 1], Y_sq[1, 1], Z_sq[1, 1])))
         p2 = np.asarray((X_sq[1, a-1], Y_sq[1,a-1], Z_sq[1, a-1]))
         p3 = np.asarray((X_sq[a-1, 1], Y_sq[a-1, 1], Z_sq[a-1, 1]))
 
-    # These two vectors are in the plane
-    v1 = p3 - p1
-    v2 = p2 - p1
+    if do_correct:
 
-    # the cross product is a vector normal to the plane
-    cp = np.cross(v1, v2)
-    a, b, c = cp
+        # These two vectors are in the plane
+        v1 = p3 - p1
+        v2 = p2 - p1
 
-    # This evaluates a * x3 + b * y3 + c * z3 which equals d
-    d = np.dot(cp, p3)
+        # the cross product is a vector normal to the plane
+        cp = np.cross(v1, v2)
+        a, b, c = cp
 
-    # Compute tilt and correct for it
-    Z_tilt = (d - a * X_sq - b * Y_sq) / c
-    Z_sq_corr = Z_sq - (Z_tilt - np.min(Z_tilt))
+        # This evaluates a * x3 + b * y3 + c * z3 which equals d
+        d = np.dot(cp, p3)
 
-    if is_debug:
-        # Visualize selected points, their plane and the correctio
-        with mpl.rc_context(rc={'interactive': True}):
-            plt.style.use("seaborn")
-            fig = plt.figure(figsize = (6, 4))
-            ax = fig.add_subplot(1, 1, 1, projection='3d')
-            ax.set_title("Points Selected for Tilt Correction")
+        # Compute tilt and correct for it
+        Z_tilt = (d - a * X_sq - b * Y_sq) / c
+        Z_sq_corr = Z_sq - (Z_tilt - np.min(Z_tilt))
 
-            ax.scatter(*zip(p1, p2, p3), s = 80, c = "r", marker="^")
-            ax.plot_trisurf(X_sq.flatten(), Y_sq.flatten(), Z_sq.flatten(),
-                            color = "gray", alpha = 0.2)
-            ax.plot_trisurf(X_sq.flatten(), Y_sq.flatten(), Z_tilt.flatten(),
-                            color = "red", alpha = 0.2)
-            ax.plot_trisurf(X_sq.flatten(), Y_sq.flatten(), Z_sq_corr.flatten(),
-                            color = "green", alpha = 0.2)
-            ax.set_xticks([], []); ax.set_yticks([], []), ax.set_zticks([], []);
-            plt.show()
+        if is_debug:
+            # Visualize selected points, their plane and the correctio
+            with mpl.rc_context(rc={'interactive': True}):
+                plt.style.use("seaborn")
+                fig = plt.figure(figsize = (6, 4))
+                ax = fig.add_subplot(1, 1, 1, projection='3d')
+                ax.set_title("Points Selected for Tilt Correction")
 
-    return (X_sq, Y_sq , Z_sq_corr)
+                ax.scatter(*zip(p1, p2, p3), s = 80, c = "r", marker="^")
+                ax.plot_trisurf(X_sq.flatten(), Y_sq.flatten(), Z_sq.flatten(),
+                                color = "gray", alpha = 0.2)
+                ax.plot_trisurf(X_sq.flatten(), Y_sq.flatten(), Z_tilt.flatten(),
+                                color = "red", alpha = 0.2)
+                ax.plot_trisurf(X_sq.flatten(), Y_sq.flatten(), Z_sq_corr.flatten(),
+                                color = "green", alpha = 0.2)
+                ax.set_xticks([], []); ax.set_yticks([], []), ax.set_zticks([], []);
+                plt.show()
+
+    else: # no correction for tilt done because user has not selected 3+ points.
+        Z_sq_corr = Z_sq
+        Z_tilt = np.zeros_like(Z_sq)
+
+    return (X_sq, Y_sq , Z_sq_corr, Z_tilt)
 
 
 

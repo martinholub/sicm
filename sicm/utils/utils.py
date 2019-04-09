@@ -5,7 +5,7 @@ import os
 
 
 def make_fname(fname, suffix = "", ext = ".pdf"):
-    basename = os.path.basename(fname) + suffix
+    basename = os.path.splitext(os.path.basename(fname))[0] + suffix
     dirname = os.path.dirname(fname)
     basename = basename.replace(" ", "_").replace("/", "").replace(":", "").replace(".", "")
     fname = os.path.join(dirname, basename + ext)
