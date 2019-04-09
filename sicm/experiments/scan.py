@@ -167,15 +167,39 @@ class Scan(Experiment):
         ax.set_title(z_lab)
 
     def plot_slices(self, tilt, n_slices = 10):
-        """"Plot measurmement values at different z-locations"""
+        """Plot measurmement values at different z-locations"""
         import pdb; pdb.set_trace()
         # Pull out whole approach curve for each hop
         data = self.data
-
         linenos, cnts = np.unique(data["LineNumber"], return_counts = True)
-        ## TODO: Continue here!
-        for ln in linenos:
 
+        # Vectorization possible?
+        z_axs = []
+        measurmements = []
+        tilt = tilt.flatten() # CHECK that correctly ordered
+        for i, ln in enumerate(linenos):
+            z = data["Z(um)"][data["LineNumber"] == ln]
+            tilt_temp = np.asarray([tilt[i]] * cnts[i])
+            z = z - (tilt_temp - np.min(tilt_temp))
+            z_axs.append(z)
+
+            nested_measurements = []
+            for k in ["Current1(A)", "LockinPhase"]:
+                try:
+                    nested_measurmements.append(data[k][data["LineNumber"] == ln])
+                except KeyError as e:
+                    pass # one of te two may not be always present.
+            measurements.append(nested_measurements)
+
+        # z_axs = np.asarray(z_axs)
+        # measurmemnts = np.asarray(measurmemnts)
+
+        z_min = np.min(z) # may need to cast to array
+        z_max = np.max(z)
+        z_range = np.linspace(z_min, z_max, n_slices)
+        z_delta = (np.max(z_range) - np.min(z_range)) / (n_slices*5)
+
+        for i, z, vals in enumerate(zip(z_axs, measurmements)):
 
     def plot_surface(self, plot_current = False):
         """Plot surface as contours and 3D"""
