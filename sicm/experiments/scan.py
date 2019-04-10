@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from sicm import analysis, plots
 from sicm.utils import utils
+from sicm.io import downsample_to_linenumber
 from .experiment import Experiment
 from ..measurements.hops import Hops
 
@@ -110,7 +111,8 @@ class Scan(Experiment):
         else:
             fpath = None
 
-        hop = Hops(self.data, self.idxs, self.name, self.date)
+        self._data["time(s)"] = np.cumsum(self._data["dt(s)"])
+        hop = Hops(self._data, self.idxs, self.name, self.date)
         hop.plot(sel, fname = fpath, do_annotate = not self.is_it)
 
     def _plot_approach(self):
@@ -155,61 +157,136 @@ class Scan(Experiment):
         _, _ = hop.annotate_peaks(sel, window_size = window_size, save_dir = self.datadir,
                                     do_plot = True)
 
-    def plot_slice(self, x, y, z, z_lab = "Z", ax = None):
+    def plot_slice(self, x, y, z, z_lab = "Z", ax = None, title = None, fname = None):
         """Plot a Single Slice"""
         if ax is None:
-            _, ax = plt.subplot(1, 1)
+            fig, ax = plt.subplots(1, 1)
+            fig.tight_layout()
+        else:
+            fig = ax.get_figure()
 
         C = ax.tricontourf(x, y, z, cmap='viridis')
         CB = fig.colorbar(C)
         ax.set_xlabel('X(um)')
         ax.set_ylabel('Y(um)')
-        ax.set_title(z_lab)
+        CB.ax.set_ylabel(z_lab)
+
+        # Set descriptive title
+        if title is not None:
+            ax.set_title(title)
+        # Save figure
+        if fname is not None:
+            utils.save_fig(fname, ext = ".png")
+
+        # Explicitly close all figures if already too many;
+        if len(plt.get_fignums()) > 3:
+            plt.close('all')
 
     def plot_slices(self, tilt, n_slices = 10):
         """Plot measurmement values at different z-locations"""
-        import pdb; pdb.set_trace()
-        # Pull out whole approach curve for each hop
-        data = self.data
-        linenos, cnts = np.unique(data["LineNumber"], return_counts = True)
+        # Look at raw data
+        data = self._data
+        uniqs, cnts = np.unique(data["LineNumber"], return_counts=True)
+        # Obtain all approaches
+        approach_linenos = np.arange(5, max(uniqs), 3)
+        approach_data, approach_idxs = downsample_to_linenumber(data, approach_linenos, "all")
+        # obtain all retracts; retract_linenos = approach_linenos + 1
+        retract_linenos = np.arange(6, max(uniqs) + 1, 3)
+        retract_data, retract_idxs = downsample_to_linenumber(data, retract_linenos, "all")
 
         # Vectorization possible?
         z_axs = []
-        measurmements = []
-        tilt = tilt.flatten() # CHECK that correctly ordered
-        for i, ln in enumerate(linenos):
-            z = data["Z(um)"][data["LineNumber"] == ln]
-            tilt_temp = np.asarray([tilt[i]] * cnts[i])
-            z = z - (tilt_temp - np.min(tilt_temp))
+        tilt = tilt.flatten() # CHECK that correctly ordered !
+        for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
+            # Extract data for approach and following retraction at given
+            # location X, Y that is descibred by i,i+1 LineNumber pair
+            z_down = approach_data["Z(um)"][approach_data["LineNumber"] == aln]
+            z_up = retract_data["Z(um)"][retract_data["LineNumber"] == rln]
+            # Handle the up/down data as of equal nature and combine them to an array
+            z = np.concatenate((z_down, z_up))
+            # Remove tilt at given X,Y and set origin to the lowest location
+            z = z - tilt[i]
+            z = z - np.min(z)
+            # Add to list of arrays
             z_axs.append(z)
+        # Be conservvative and slice only where we have data for all hops.
+        # This will trhow away lot of information if even a single approach
+        # is much shorter than other approaches.
+        # It is slightly mitigated by adding retract data, but this presumes
+        # that the data from approach and retract are of comparable nature.
+        # The approach is less reliable for far-away z-coordinates (>75% of z_range)
+        # because occasionally only retract points will be considered for given X,Y.
+        z_diffs = [zz.max() - zz.min() for zz in z_axs]
+        slices_z_locs, z_delta = np.linspace(0, np.min(z_diffs), n_slices, retstep = True)
 
-            nested_measurements = []
-            for k in ["Current1(A)", "LockinPhase"]:
+        # slices = {
+        #     "Current(A)": np.empty(tilt.shape + (i, ), np.float()),
+        #     "LockinPhase": np.empty(tilt.shape + (i, ), np.float()),
+        #     "Z(um)": np.asarray(z_axs).reshape()
+        #     }
+
+        val_keys = ["Current1(A)", "LockinPhase"]
+        slices_shape = tilt.shape + (n_slices, ) + (len(val_keys), )
+        # Consider prefilling with NaN to be hit in face when something goes wrong
+        measurements = np.full(slices_shape, np.nan)
+        stds = np.full_like(measurements, np.nan)
+
+        for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
+            for k, key in enumerate(val_keys):
                 try:
-                    nested_measurmements.append(data[k][data["LineNumber"] == ln])
+                    v_down = data[key][data["LineNumber"] == aln]
+                    v_up = data[key][data["LineNumber"] == rln]
+                    v_all = np.concatenate((v_down, v_up))
+
+                    for j, szl in enumerate(slices_z_locs):
+                        z = z_axs[i]
+                        # Look always at slice of thicknes z_delta centeted around given z
+                        # Tested also slice thickness z_delta/2 but results looked alike.
+                        cond1 = z >= (szl - z_delta * .5)
+                        cond2 = z < (szl + z_delta * .5)
+                        sel = np.nonzero(np.logical_and(cond1, cond2))[0]
+                        v_sub = v_all[sel]
+
+                        # Tested also mean, result was alike
+                        measurements[i, j, k] = np.median(v_sub)
+                        stds[i, j, k] = np.std(v_sub)
+                        # Warn user if data potentialy unreliable
+                        if np.std(v_sub) == 0:
+                            msg =   "Single datapoint available for `{}` at [{},{},{}]. " +\
+                                    "Measurement is not reliable!"
+                            msg = msg.format(key, i, j, k)
+                            print(msg)
                 except KeyError as e:
-                    pass # one of te two may not be always present.
-            measurements.append(nested_measurements)
+                    pass # one of the two may not be always present.
 
-        # z_axs = np.asarray(z_axs)
-        # measurmemnts = np.asarray(measurmemnts)
+        # Pull out X, Y coordinates data
+        n_points = len(tilt)
+        X = np.squeeze(self.dsdata["X(um)"])[:n_points]
+        Y = np.squeeze(self.dsdata["Y(um)"])[:n_points]
 
-        z_min = np.min(z) # may need to cast to array
-        z_max = np.max(z)
-        z_range = np.linspace(z_min, z_max, n_slices)
-        z_delta = (np.max(z_range) - np.min(z_range)) / (n_slices*5)
+        # Iterate over measured parameters
+        for i, key in enumerate(val_keys):
+            val = np.squeeze(measurements[:,:, i])
+            # Skip given measurmement if we dont have data
+            if np.isnan(val).all():
+                continue
+            fpath = self.get_fpath()
+            fpath = utils.make_fname(fpath, subdirname = "{}/{}".format("slices", key))
+            # Iterate Over Slices
+            for slice_id in np.arange(0, val.shape[-1]):
+                slice = np.squeeze(val[:, slice_id])
+                z_annot = str(np.around(slices_z_locs[slice_id], 4))
+                title = "slice {:d} @ z = {} um".format(slice_id, z_annot)
+                fname = utils.make_fname(fpath, "_" + str(np.int(slice_id)))
+                self.plot_slice(X, Y, slice, key, title = title, fname = fname)
 
-        for i, z, vals in enumerate(zip(z_axs, measurmements)):
-
-    def plot_surface(self, plot_current = False):
+    def plot_surface(self, plot_current = False, plot_slices = False):
         """Plot surface as contours and 3D"""
         # Plot downsampled Data
         result = self.dsdata
         X = np.squeeze(result["X(um)"])
         Y = np.squeeze(result["Y(um)"])
 
-        # Plot slices at various Zs?
-        plot_slices = False
         if self.is_constant_distance:
             # We care about measurements of current
             Z = np.squeeze(result["Current1(A)"])
@@ -222,10 +299,8 @@ class Scan(Experiment):
             # Note that downsampling is stronger for most datasets! (see the function body)
             X, Y, Z = self._downsample_surface_data(X, Y, Z, to_keep)
 
-        elif plot_current:
-            # if plotting current on z-axis, it is preferable to obtain data
-            # at various z-levels and possibly average over slice of thicnkes 2*\delta
-            plot_slices = True
+        elif plot_current and not plot_slices:
+            # if you want to plot slices, allow leveling Z
             Z = np.squeeze(result["Current1(A)"])
             z_lab = "Current1(A)"
         else:
@@ -244,33 +319,36 @@ class Scan(Experiment):
                                                         z_lab = z_lab)
         npoints = len(Z_sq.flatten())
 
-        plt.style.use("seaborn")
-        fig = plt.figure(figsize = (12, 10))
-        fig.tight_layout()
+        if plot_slices:
+            self.plot_slices(Z_tilt)
+        else:
+            plt.style.use("seaborn")
+            fig = plt.figure(figsize = (12, 10))
+            # fig.tight_layout()
 
-        # Filled countour with triangulation
+            # Filled countour with triangulation
 
-        ax = fig.add_subplot(2, 2, 1)
-        self.plot_slice(X[:npoints], Y[:npoints], Z_sq.flatten(), z_lab, ax)
-        # C = ax.tricontourf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='viridis')
-        # CB = fig.colorbar(C)
-        # ax.set_xlabel('X(um)')
-        # ax.set_ylabel('Y(um)')
-        # ax.set_title(z_lab)
+            ax = fig.add_subplot(2, 2, 1)
+            self.plot_slice(X[:npoints], Y[:npoints], Z_sq.flatten(), z_lab, ax)
+            # C = ax.tricontourf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='viridis')
+            # CB = fig.colorbar(C)
+            # ax.set_xlabel('X(um)')
+            # ax.set_ylabel('Y(um)')
+            # ax.set_title(z_lab)
 
-        # Surface in 3D projection
-        ax = fig.add_subplot(2, 2, 2, projection='3d')
-        ax.plot_trisurf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='viridis')
-        ax.set_xlabel('X(um)')
-        ax.set_ylabel('Y(um)')
-        ax.set_zlabel(z_lab)
+            # Surface in 3D projection
+            ax = fig.add_subplot(2, 2, 2, projection='3d')
+            ax.plot_trisurf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='viridis')
+            ax.set_xlabel('X(um)')
+            ax.set_ylabel('Y(um)')
+            ax.set_zlabel(z_lab)
 
-        # # Filled contours without triangulation
-        # ax = fig.add_subplot(2, 2, 3)
-        # C = ax.contourf(X_sq, Y_sq, Z_sq, cmap='viridis')
-        # CB = fig.colorbar(C)
-        # ax.set_xlabel('X(um)')
-        # ax.set_ylabel('Y(um)')
-        # ax.set_title('Z(um)')
+            # # Filled contours without triangulation
+            # ax = fig.add_subplot(2, 2, 3)
+            # C = ax.contourf(X_sq, Y_sq, Z_sq, cmap='viridis')
+            # CB = fig.colorbar(C)
+            # ax.set_xlabel('X(um)')
+            # ax.set_ylabel('Y(um)')
+            # ax.set_title('Z(um)')
 
-        plt.show()
+            plt.show()

@@ -14,8 +14,7 @@ if args.what == "scan":
         scan_type = "constant_distance"
     scan = Scan(data_dir, exp_name, args.yrange, args.xrange, args.do_correct,
                 scan_type)
-    # scan.plot_surface(args.plot_current)
-    scan.plot_slices()
+    scan.plot_surface(args.plot_current, args.plot_slices)
 
 # elif args.what == "lockin":
 #     # Data loc

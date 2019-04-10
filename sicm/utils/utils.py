@@ -2,17 +2,28 @@ import time
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
+import re
 
 
-def make_fname(fname, suffix = "", ext = ".pdf"):
+def make_fname(fname, suffix = "", ext = ".pdf", subdirname = ""):
+    # Append suffix to filename and remove non-desirable characters
     basename = os.path.splitext(os.path.basename(fname))[0] + suffix
-    dirname = os.path.dirname(fname)
     basename = basename.replace(" ", "_").replace("/", "").replace(":", "").replace(".", "")
-    fname = os.path.join(dirname, basename + ext)
+    # Obtain absolute location of parent direcotry and normalize
+    dirname = os.path.dirname(fname)
+    subdir_path = os.path.normpath(os.path.join(dirname, subdirname))
+    # Create directory if needed
+    if not os.path.isdir(subdir_path):
+        os.makedirs(subdir_path)
+        
+    fname = os.path.normpath(os.path.join(subdir_path, basename + ext))
     return fname
 
 def save_fig(fname, suffix = "", ext = ".pdf"):
     """Helper to save figures"""
+    if not ext.startswith("."):
+        ext = "." + ext
+
     fname = make_fname(fname, suffix, ext)
     plt.savefig(fname, dpi = 300, bbox_inches = "tight")
     print("Saved figure to {}.".format(fname))

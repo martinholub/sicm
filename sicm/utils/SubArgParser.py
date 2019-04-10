@@ -25,6 +25,8 @@ class SubArgParser(ArgumentParser):
                             action="store_true", help = "Is the scan obtained at constant distance?")
         self.add_argument(  "--current", dest = "plot_current",
                             action="store_true", help = "Plot current on Z axis?")
+        self.add_argument(  "--slices", dest = "plot_slices",
+                            action="store_true", help = "Plot slices at various Z?")
         self.add_argument("datadir", action = "store", default = "./",
                         help = "Path to data directory [default='./']",
                         type = abspath)
