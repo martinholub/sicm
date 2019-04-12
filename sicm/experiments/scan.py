@@ -22,12 +22,13 @@ class Scan(Experiment):
                 scan_type = "scan"):
 
         super(Scan, self).__init__(datadir, exp_name, scan_type)
-        self.dsdata = self._trim_dsdata(x_trim, y_trim)
+        self.dsdata = self._trim_data(self.dsdata, x_trim, y_trim)
         self.dsdata = self._correct_dsdata(do_correct)
+        self.x_trim = x_trim
+        self.y_trim = y_trim
         self._report_xy_extents()
 
-    def _trim_dsdata(self, x_trim, y_trim):
-        data = self.dsdata
+    def _trim_data(self, data, x_trim, y_trim):
         if not y_trim: y_trim = None
         if not x_trim: x_trim = None
 
@@ -157,19 +158,24 @@ class Scan(Experiment):
         _, _ = hop.annotate_peaks(sel, window_size = window_size, save_dir = self.datadir,
                                     do_plot = True)
 
-    def plot_slice(self, x, y, z, z_lab = "Z", ax = None, title = None, fname = None):
-        """Plot a Single Slice"""
+    def plot_slice( self, x, y, z, z_lab = "Z", ax = None, title = None,
+                    fname = None, cbar_lims = (None, None)):
+        """Plot a single slice"""
         if ax is None:
             fig, ax = plt.subplots(1, 1)
             fig.tight_layout()
         else:
             fig = ax.get_figure()
 
-        C = ax.tricontourf(x, y, z, cmap='viridis')
-        CB = fig.colorbar(C)
+        import pdb; pdb.set_trace()
+        cmap = plots.make_cmap("binary")
+        conts = ax.tricontourf(x, y, z, cmap = cmap) # or greys
+        cbar = fig.colorbar(conts)
+
         ax.set_xlabel('X(um)')
         ax.set_ylabel('Y(um)')
-        CB.ax.set_ylabel(z_lab)
+        cbar.ax.set_ylabel(z_lab)
+        cbar.set_clim(*cbar_lims)
 
         # Set descriptive title
         if title is not None:
@@ -185,7 +191,7 @@ class Scan(Experiment):
     def plot_slices(self, tilt, n_slices = 10):
         """Plot measurmement values at different z-locations"""
         # Look at raw data
-        data = self._data
+        data = self._trim_data(self._data, self.x_trim, self.y_trim)
         uniqs, cnts = np.unique(data["LineNumber"], return_counts=True)
         # Obtain all approaches
         approach_linenos = np.arange(5, max(uniqs), 3)
@@ -198,10 +204,14 @@ class Scan(Experiment):
         z_axs = []
         tilt = tilt.flatten() # CHECK that correctly ordered !
         for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
+            # if trimmed manually, some points will be out-of-grid and are discarded
+            if i >= len(tilt):
+                continue
             # Extract data for approach and following retraction at given
             # location X, Y that is descibred by i,i+1 LineNumber pair
-            z_down = approach_data["Z(um)"][approach_data["LineNumber"] == aln]
-            z_up = retract_data["Z(um)"][retract_data["LineNumber"] == rln]
+            # discarding point at the very bottom from both sides
+            z_down = approach_data["Z(um)"][approach_data["LineNumber"] == aln][:-1]
+            z_up = retract_data["Z(um)"][retract_data["LineNumber"] == rln][1:]
             # Handle the up/down data as of equal nature and combine them to an array
             z = np.concatenate((z_down, z_up))
             # Remove tilt at given X,Y and set origin to the lowest location
@@ -218,37 +228,48 @@ class Scan(Experiment):
         # because occasionally only retract points will be considered for given X,Y.
         z_diffs = [zz.max() - zz.min() for zz in z_axs]
         slices_z_locs, z_delta = np.linspace(0, np.min(z_diffs), n_slices, retstep = True)
+        # Adjust the interval by delta-multiplier*z_delta up
+        delta_multiplier  = 0.25 # half-width of interval
+        slices_z_locs, z_delta = np.linspace(delta_multiplier * z_delta,
+                                slices_z_locs[-1] - delta_multiplier * z_delta, n_slices, retstep = True)
 
-        # slices = {
-        #     "Current(A)": np.empty(tilt.shape + (i, ), np.float()),
-        #     "LockinPhase": np.empty(tilt.shape + (i, ), np.float()),
-        #     "Z(um)": np.asarray(z_axs).reshape()
-        #     }
-
-        val_keys = ["Current1(A)", "LockinPhase"]
-        slices_shape = tilt.shape + (n_slices, ) + (len(val_keys), )
-        # Consider prefilling with NaN to be hit in face when something goes wrong
+        keypairs = {"Current1(A)": r"$I_{norm} [-]$",
+                    "LockinPhase": r"$\theta_{norm} [-]$"}
+        slices_shape = tilt.shape + (n_slices, ) + (len(keypairs), )
         measurements = np.full(slices_shape, np.nan)
         stds = np.full_like(measurements, np.nan)
 
         for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
-            for k, key in enumerate(val_keys):
+            # if trimmed manually, some points will be out-of-grid and are discarded
+            if i >= len(tilt):
+                continue
+
+            for k, key in enumerate(keypairs.keys()):
                 try:
-                    v_down = data[key][data["LineNumber"] == aln]
-                    v_up = data[key][data["LineNumber"] == rln]
+                    # Pull out measurmement, discarding point at the very
+                    # bottom from both sides
+                    v_down = data[key][data["LineNumber"] == aln][:-1]
+                    v_up = data[key][data["LineNumber"] == rln][1:]
                     v_all = np.concatenate((v_down, v_up))
+                    # Normalize by value at the top of approach
+                    # consider initial 250ms as period for sampling max value
+                    # take almost maximum, but avoid picking an outlier
+                    t = np.cumsum(data["dt(s)"][data["LineNumber"] == aln][:-1])
+                    idxs = np.nonzero(t < 250e-3)[0]
+                    v_all = v_all / np.quantile(v_all[idxs], 0.95)
 
                     for j, szl in enumerate(slices_z_locs):
                         z = z_axs[i]
                         # Look always at slice of thicknes z_delta centeted around given z
                         # Tested also slice thickness z_delta/2 but results looked alike.
-                        cond1 = z >= (szl - z_delta * .5)
-                        cond2 = z < (szl + z_delta * .5)
+                        cond1 = z >= (szl - z_delta * delta_multiplier)
+                        cond2 = z < (szl + z_delta * delta_multiplier)
                         sel = np.nonzero(np.logical_and(cond1, cond2))[0]
                         v_sub = v_all[sel]
 
-                        # Tested also mean, result was alike
-                        measurements[i, j, k] = np.median(v_sub)
+                        # Tested mean and mean, result was alike
+                        # Mean may be better with noise, edian with outliers
+                        measurements[i, j, k] = np.mean(v_sub)
                         stds[i, j, k] = np.std(v_sub)
                         # Warn user if data potentialy unreliable
                         if np.std(v_sub) == 0:
@@ -265,20 +286,27 @@ class Scan(Experiment):
         Y = np.squeeze(self.dsdata["Y(um)"])[:n_points]
 
         # Iterate over measured parameters
-        for i, key in enumerate(val_keys):
+        for i, (key, label) in enumerate(keypairs.items()):
             val = np.squeeze(measurements[:,:, i])
+
             # Skip given measurmement if we dont have data
             if np.isnan(val).all():
                 continue
+            # Make colorbar extents common to all slices for given key
+            cbar_lims = (np.min(val), np.max(val))
+            # Get path for saving
             fpath = self.get_fpath()
             fpath = utils.make_fname(fpath, subdirname = "{}/{}".format("slices", key))
+
             # Iterate Over Slices
             for slice_id in np.arange(0, val.shape[-1]):
                 slice = np.squeeze(val[:, slice_id])
                 z_annot = str(np.around(slices_z_locs[slice_id], 4))
                 title = "slice {:d} @ z = {} um".format(slice_id, z_annot)
                 fname = utils.make_fname(fpath, "_" + str(np.int(slice_id)))
-                self.plot_slice(X, Y, slice, key, title = title, fname = fname)
+                self.plot_slice(X, Y, slice, label,
+                                title = title, fname = fname,
+                                cbar_lims = cbar_lims)
 
     def plot_surface(self, plot_current = False, plot_slices = False):
         """Plot surface as contours and 3D"""
@@ -338,7 +366,7 @@ class Scan(Experiment):
 
             # Surface in 3D projection
             ax = fig.add_subplot(2, 2, 2, projection='3d')
-            ax.plot_trisurf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='viridis')
+            ax.plot_trisurf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='binary')
             ax.set_xlabel('X(um)')
             ax.set_ylabel('Y(um)')
             ax.set_zlabel(z_lab)
@@ -351,4 +379,9 @@ class Scan(Experiment):
             # ax.set_ylabel('Y(um)')
             # ax.set_title('Z(um)')
 
+            # Save figure
+            fpath = self.get_fpath()
+            fname = utils.make_fname(fpath, "_surface")
+            utils.save_fig(fname, ext = ".png")
+            # Show
             plt.show()

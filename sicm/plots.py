@@ -223,7 +223,7 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
         legend = ['\n'.join(wrap(l, 20)) if not l.startswith("$") else l for l in legend ]
         ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
                     borderaxespad = 1.1)
-        # bbox_to_anchor=(1.01,1), loc="upper left" # if you need the legend outside            
+        # bbox_to_anchor=(1.01,1), loc="upper left" # if you need the legend outside
 
     if fname is not None:
         utils.save_fig(fname)
@@ -306,3 +306,16 @@ def errorplot_generic(  Xs, Ys, Y_errs, x_lab = None, y_lab = None, legend = Non
         utils.save_fig(fname)
     # recover plotting style
     mpl.rcParams.update(mpl.rcParamsDefault)
+
+def make_colorbar(fig, cmap, levels, cmin, cmax):
+    # https://stackoverflow.com/questions/44498631/continuous-colorbar-with-contour-levels
+    import pdb; pdb.set_trace()
+    norm = mpl.colors.Normalize(vmin = cmin, vmax = cmax)
+    sm = plt.cm.ScalarMappable(norm = norm, cmap = cmap)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ticks = cs.levels)
+    return cbar
+
+def make_cmap(name, n_levels = 128):
+    cmap = mpl.colors.Colormap(name, n_levels)
+    return cmap
