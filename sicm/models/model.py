@@ -85,6 +85,29 @@ class Model(object):
         # utils.save_fig(text)
         plt.show()
 
+    def _fit(self, guess = None, double_ax = True):
+        fun, guess_ = self._fit_wrapper()
+        x = self.x
+        y = self.y
+        if guess is None:
+            guess = guess_
+        #Solve non-linear lsq problem, yielding parama minimizing fun(x,*params)-y
+        start_time = timeit.default_timer()
+        try:
+            print("Fitting {} to {} datapoints ...".format(fun.__qualname__, len(x)))
+        except AttributeError as e:
+            print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
+
+        popt, _ = curve_fit(fun, x, y, p0 = guess, maxfev = np.int(1e6),
+                            method = "lm")
+
+        end_time = timeit.default_timer()
+        print("Found parameters: {}.".format(popt))
+        print("Finished in {:.3f} s".format(end_time - start_time))
+        self.popt = popt
+
+        self.plot_fit(y, x, double_ax = double_ax)
+
 class SICMModel(Model):
     """SICM Model
 
@@ -429,3 +452,51 @@ class CapillaryAction(object):
         if y is None:
             y = self._calculate_alpha()
         plots.plot_generic([x], [y], [x_lab], [y_lab], legend, fname)
+
+class Laser(Model):
+    """Laser Object for Calibration"""
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        super(Laser, self).__init__()
+
+    @property
+    def fun(self):
+        val, _ = self._fit_wrapper()
+        return val
+
+    def _fit_wrapper(self):
+        """"Fit convenience wrapper"""
+        guess = [250, -250]
+        def _relu_fit(x, *params):
+            """Fit general exponential relationship
+            Parameters
+            -----------
+            x: array-like
+                Diode Current [a.u.]
+            params: tuple of floats
+                Parameters of the model
+            """
+            c1, c2 = params
+            zero = 0
+            if len(x) > 1:
+                zero = [zero] * len(x)
+            y = np.maximum(zero , c1*x + c2)
+            return y
+        return _relu_fit, guess
+
+    def fit(self, *args, **kwargs):
+        self._fit(*args, **kwargs)
+
+    def plot(self, fname = None):
+        """Plot data
+
+        Parameters
+        --------
+        fname: str
+            Optional fpath for saving data
+        """
+        y = self.y
+        x = self.x
+        plots.plot_generic( [x], [y], ["Driving Current [a.u.]"], ["Power [mw]"],
+                            fname = fname)

@@ -172,7 +172,9 @@ class Signal(object):
             Noise level, in same units as data.
         """
         fs = 1 / np.diff(xx)[0]
-        f, Pyy_spec = welch(yy, fs, window = "hamming", nperseg = 64,
+        # adding: nfft = 512 or noverlap = 128 does not change much
+        # same goes for using different windows
+        f, Pyy_spec = welch(yy, fs, window = "hamming", nperseg = 256,
                             detrend = "constant", scaling = "spectrum",
                             return_onesided = True)
 

@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from copy import deepcopy
 
 from sicm import analysis, plots
@@ -129,7 +130,8 @@ class Scan(Experiment):
         # hardcodding 2 may be the most robust!
         approach_lineno = uniqs[np.argmax(cnts)]
         sel = data["LineNumber"] == approach_lineno
-        x_ax = [np.cumsum(data["dt(s)"][sel])]
+        x_ax = data["Z(um)"][sel] # [np.cumsum(data["dt(s)"][sel])]
+        x_ax = [x_ax - np.min(x_ax)]
         y_ax = []
         y_lab = []
 
@@ -145,7 +147,7 @@ class Scan(Experiment):
         except KeyError as e:
             pass
 
-        x_lab = ["time(s)"]
+        x_lab = ["Z(um)"]# ["time(s)"]
 
         fpath = self.get_fpath()
         fpath = utils.make_fname(fpath, "_approach")
@@ -167,15 +169,23 @@ class Scan(Experiment):
         else:
             fig = ax.get_figure()
 
-        import pdb; pdb.set_trace()
-        cmap = plots.make_cmap("binary")
-        conts = ax.tricontourf(x, y, z, cmap = cmap) # or greys
-        cbar = fig.colorbar(conts)
+        if any(cl is None for cl in cbar_lims):
+            # Option 2: Variable colorbar, but better contrast for each slice
+            conts = ax.tricontourf(x, y, z, cmap = "gray", levels = 10) # or greys
+            cbar = fig.colorbar(conts, format = "%.4E", drawedges = True)
+            # cbar.set_clim(*cbar_lims) # this appears not helpful
+        else:
+            # Option 1: Same colorbar for all slices
+            norm = mpl.colors.Normalize(vmin = cbar_lims[0], vmax = cbar_lims[1])
+            conts = ax.tricontourf(x, y, z, cmap = "gray", levels = 10, norm = norm) # or greys
+            cbar = plots.make_colorbar(fig, conts.cmap, conts.levels, *cbar_lims)
+
+
+        cbar.ax.set_ylabel(z_lab)
 
         ax.set_xlabel('X(um)')
         ax.set_ylabel('Y(um)')
-        cbar.ax.set_ylabel(z_lab)
-        cbar.set_clim(*cbar_lims)
+
 
         # Set descriptive title
         if title is not None:

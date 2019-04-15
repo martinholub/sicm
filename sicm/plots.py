@@ -224,6 +224,8 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
         ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
                     borderaxespad = 1.1)
         # bbox_to_anchor=(1.01,1), loc="upper left" # if you need the legend outside
+    elif len(Xs) > 1:
+        plt.legend(range(len(Xs)))
 
     if fname is not None:
         utils.save_fig(fname)
@@ -308,14 +310,32 @@ def errorplot_generic(  Xs, Ys, Y_errs, x_lab = None, y_lab = None, legend = Non
     mpl.rcParams.update(mpl.rcParamsDefault)
 
 def make_colorbar(fig, cmap, levels, cmin, cmax):
-    # https://stackoverflow.com/questions/44498631/continuous-colorbar-with-contour-levels
-    import pdb; pdb.set_trace()
+    """Make nice colorbar
+
+    Parameters
+    ------------
+    fig: matplotlib.figure.Figure
+    cmap: matplotlib.colors.Colormap
+    levels: array-like
+        Levels of countour plot
+    cmin: float
+        Minimum relative value for colorbar color
+    cmax: float
+        Maximum relative value for colorbar color
+
+    Returns
+    ------------
+    cbar: matplotlib.pyplot.Colorbar
+
+    References
+    ---------
+    [1] https://stackoverflow.com/questions/44498631/continuous-colorbar-with-contour-levels
+    """
     norm = mpl.colors.Normalize(vmin = cmin, vmax = cmax)
     sm = plt.cm.ScalarMappable(norm = norm, cmap = cmap)
     sm.set_array([])
-    cbar = fig.colorbar(sm, ticks = cs.levels)
+    ticks = np.linspace(levels.min(), levels.max(), 6)
+    # setting boundaries clips off colorbar extends that are not in current lelves
+    cbar = fig.colorbar(sm, ticks = ticks, # boundaries = levels,
+                        format = "%.3f", drawedges = True)
     return cbar
-
-def make_cmap(name, n_levels = 128):
-    cmap = mpl.colors.Colormap(name, n_levels)
-    return cmap
