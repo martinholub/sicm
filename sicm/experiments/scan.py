@@ -205,9 +205,13 @@ class Scan(Experiment):
         uniqs, cnts = np.unique(data["LineNumber"], return_counts=True)
         # Obtain all approaches
         approach_linenos = np.arange(5, max(uniqs), 3)
+        ## include effect of trimming
+        approach_linenos = approach_linenos[np.in1d(approach_linenos, uniqs)]
         approach_data, approach_idxs = downsample_to_linenumber(data, approach_linenos, "all")
         # obtain all retracts; retract_linenos = approach_linenos + 1
         retract_linenos = np.arange(6, max(uniqs) + 1, 3)
+        ## include effect of trimming
+        retract_linenos = retract_linenos[np.in1d(retract_linenos, uniqs)]
         retract_data, retract_idxs = downsample_to_linenumber(data, retract_linenos, "all")
 
         # Vectorization possible?
