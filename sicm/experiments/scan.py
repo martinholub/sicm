@@ -12,12 +12,20 @@ from ..measurements.hops import Hops
 class Scan(Experiment):
     """SCAN Object
 
-    TODO:
-        - allow downsampling if too many datapoints
-
     Parameters
     -------------
-
+    datadir: str
+        Directory where data for given experiment is stored
+    exp_name: str
+        Name of the experiment, must correspond to the filename
+    y_trim: array-like, length two
+        Tuple of (y_start, y_end), range of y-axis to preserve
+    x_trim: array-like, length two
+        Tuple of (x_start, x_end), range of x-axis to preserve
+    do_correct: bool
+        Apply correction for jump in current? Works nicely, but data is strongly influenced.
+    scan_type: str
+        Type of scan. ("scan", "it")
     """
     def __init__(self, datadir, exp_name, y_trim = None, x_trim = None, do_correct = False,
                 scan_type = "scan"):

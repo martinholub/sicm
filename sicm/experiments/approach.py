@@ -9,20 +9,38 @@ from sicm.utils import utils
 from .experiment import Experiment, ExperimentList
 from ..measurements.signal import Signal
 
-
 class Approach(Experiment):
     def __init__(self, datadir, exp_name):
         super(Approach, self).__init__(datadir, exp_name, etype = "approach")
-        # TODO: handle data, guessid params
 
-    def plot(self, sel = None):
-        plots.plot_sicm(self.dsdata, sel, "Approach", self.name, self.date)
+    def plot(self, sel = None, what = "generic"):
+        """Simple wrapper for plotting
+        """
+        if what.lower().startswith("sicm"):
+            plots.plot_sicm(self.dsdata, sel, "Approach", self.name, self.date)
+        else:
+            # consider calling plot_generic directly
+            z_ax = self.dsdata["Z(um)"]
+            z_ax = z_ax - np.min(z_ax)
+            y_ax = self.dsdata["Current1(A)"]*1e9
+            if sel is None:
+                sel = [True] * len(z_ax)
+
+            sig = Signal(z_ax[sel], y_ax[sel], self.datadir, self.name)
+            sig.plot("Z [um]", "Current [nA]", legend = "")
+
 
 class ApproachList(ExperimentList):
-    """Construct List of Approache Objects
+    """Construct List of Approach Objects
     """
     def __init__(self, datadirs, exp_names):
-        super(ApproachList, self).__init__(datadirs, exp_names, etype = "approach")
+        self.list = self._create_approaches_list(datadirs, exp_names)
+
+    def _create_approaches_list(self, datadirs, exp_names):
+        """ Build List of Approaches """
+        objs = [deepcopy(Approach) for i in range(len(exp_names))]
+        alist = self._create_experiments_list(datadirs, exp_names, objs)
+        return alist
 
     def _stitch(self, datasets_str):
         """Stitch datasest for elements of lists
@@ -97,15 +115,22 @@ class ApproachList(ExperimentList):
         Parameters
         ---------------
         obj: Approach
+            Stitched Approach
         lengths: array-like
+            lengths of individual segments of stittched object
         datasets: array-like
-        z_range: float
+            Lists of strings, names of attributes of obj to be stitched
         z_move: float
+            z-shift between segments, in um
+        z_range: float
+            maximal z-range of each segment, needed only if preserve_overlap == False
         preserve_overlap: bool
+            Preserve overlapping segments in stitched datasets?
 
         Returns
         -----------
         obj_out: Approach
+            Overlapped Approach
         """
         # General value of overlap between nano and microdrive movements
         z_overlap = z_range - z_move
@@ -163,7 +188,7 @@ class ApproachList(ExperimentList):
             Fractional size of overlap between
         """
         # Decide which datasets to stitch & overlap
-        # Currently this ignores IDX!
+        # Currently this ignores IDX, but as we tak all idx, for each segment, this is OK.
         datasets = ["data", "_data", "dsdata"]
         stitch_obj, stitch_lengths = self._stitch(datasets)
         overlap_obj = self._overlap(stitch_obj, stitch_lengths, datasets,

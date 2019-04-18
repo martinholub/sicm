@@ -18,6 +18,15 @@ class Signal(object):
         self.datadir = datadir
         self.exp_name = exp_name
 
+    @property
+    def exp_name(self):
+        return self._exp_name
+    @exp_name.setter
+    def exp_name(self, value):
+        if not isinstance(value, (str, )) and isinstance(value, (list, tuple)):
+            value = "-".join(value)
+        self._exp_name = value
+
     def get_fpath(self):
         """Make filename"""
         try:
@@ -82,7 +91,7 @@ class Signal(object):
         avg = np.mean(self.y)
         std = np.std(self.y)
         fname = self.get_fpath()
-        if legend is None:
+        if legend is None and legend != "":
             legend = "$\mu$: {:.3E}\n$\sigma$: {:.3E}".format(avg, std)
         plots.plot_generic([self.x], [self.y], [x_lab], [y_lab], legend, fname)
 

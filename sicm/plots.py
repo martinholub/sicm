@@ -218,7 +218,7 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
         if re.match("log( ?|\()", x_lab, re.IGNORECASE): ax.set_xscale("log")
         if re.match("log( ?|\()", y_lab, re.IGNORECASE): ax.set_yscale("log")
 
-    if legend is not None:
+    if legend is not None and legend != "":
         if not isinstance(legend, (list, tuple)): legend = [legend]
         legend = ['\n'.join(wrap(l, 20)) if not l.startswith("$") else l for l in legend ]
         ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
