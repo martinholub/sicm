@@ -96,8 +96,8 @@ class Scan(Experiment):
         """
         if not isinstance(by, (list, tuple, np.ndarray)):
             by = np.arange(0, np.prod(X.shape), by)
-        if len(by) >  np.prod(X.shape)*0.05:
-            factor = np.int(len(by) / (np.prod(X.shape)*0.05))
+        if len(by) >  np.prod(X.shape)*0.1:
+            factor = np.int(len(by) / (np.prod(X.shape)*0.1))
             by = np.arange(0, np.prod(X.shape), factor)
         print(  "Downsampled from {} to {} datapoints for `plot_surface`.".\
                 format(np.prod(X.shape), len(by)))

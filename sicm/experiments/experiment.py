@@ -52,12 +52,12 @@ class Experiment(object):
             if self.is_constant_distance:
                 # constant_distance scan
                 # starting at 6 is forward, starting at 10 is reverse
-                linenos = np.arange(10, max(uniqs), 6)
-                ## if NO_REVERSE, apply heuristics to select the correspnding linenumbers
-                # guess_lineno_cnts = np.sort(cnts)[-3]
-                # linenos = uniqs[np.argwhere(np.logical_and( cnts > guess_lineno_cnts*0.9,
-                #                                             cnts < guess_lineno_cnts*1.1))]
-                # result, idxs = io.downsample_to_linenumber(data, linenos, "all")
+                # linenos = np.arange(10, max(uniqs), 6)
+                # if NO_REVERSE, apply heuristics to select the correspnding linenumbers
+                guess_lineno_cnts = np.sort(cnts)[-3]
+                linenos = uniqs[np.argwhere(np.logical_and( cnts > guess_lineno_cnts*0.9,
+                                                            cnts < guess_lineno_cnts*1.1))]
+                result, idxs = io.downsample_to_linenumber(data, linenos, "all")
             elif self.is_it:
                 linenos = np.arange(min(uniqs)+1, max(uniqs), 1)
                 result, idxs = io.downsample_to_linenumber(data, linenos, "all")
