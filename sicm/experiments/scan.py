@@ -104,6 +104,70 @@ class Scan(Experiment):
 
         return X[by], Y[by], Z[by]
 
+    def _aggregate_surface_data(self, X, Y, Z, what = "median"):
+        """"Compute statistics at given X, Y locations
+
+        TODO: Combine X, Y loci within some noise level of X, Y piezos.
+        """
+        # x is increasing linearly, but has plenty of points for each X
+        # y is mostly constant
+        # TODO: make this more robust
+        x_noise = np.quantile(np.abs(np.diff(X)), 0.45) / 2
+        y_noise = np.quantile(np.abs(np.diff(Y)), 0.975) / 2
+
+        X_ = []
+        Y_ = []
+        Z_ = []
+        for i, (x, y, z) in enumerate(zip(X, Y, Z)):
+            if i == 0:
+                past_x = x
+                past_y = y
+                past_z = z
+                temp_x = []
+                temp_y = []
+                temp_z = []
+                retry_count = 0
+                continue
+
+            if  (np.logical_and(x >= past_x - x_noise, x <= past_x + x_noise) or \
+                np.logical_and(x >= past_x - x_noise, x <= past_x + x_noise)) and \
+                np.logical_and(y >= past_y - y_noise, y <= past_y + y_noise):
+
+                temp_x.extend([past_x])
+                temp_y.extend([past_y])
+                temp_z.extend([past_z])
+            else:
+                try:
+                    retry_count += 1
+                    z_ = np.median(temp_z) if what == "median" else np.mean(temp_z)
+                    values, counts = np.unique(temp_x, return_counts=True)
+                    x_ =  values[np.argmax(counts)]
+                    values, counts = np.unique(temp_y, return_counts=True)
+                    y_ = values[np.argmax(counts)]
+                    X_.extend([x_])
+                    Y_.extend([y_])
+                    Z_.extend([z_])
+                    temp_x = []
+                    temp_y = []
+                    temp_z = []
+                    retry_count = 0
+                except:
+                    if retry_count > 1:
+                        X_.extend([past_x])
+                        Y_.extend([past_y])
+                        Z_.extend([past_z])
+                    else:
+                        pass
+
+                past_x = x
+                past_y = y
+                past_z = z
+
+            assert len(set(len(j) for j in [Z_, Y_, X_])) == 1
+            import pdb; pdb.set_trace()
+            return np.asarray(X_), np.asarray(Y_), np.asarray(Z_)
+
+
 
     def plot_hopping_scan(self, sel = None):
         """Plot results of hopping scan
@@ -348,6 +412,7 @@ class Scan(Experiment):
             to_keep = np.nonzero(Z_aux == uniqs[np.argmax(cnts)])[0]
             # Note that downsampling is stronger for most datasets! (see the function body)
             X, Y, Z = self._downsample_surface_data(X, Y, Z, to_keep)
+            # X, Y, Z = self._aggregate_surface_data(X, Y, Z, what = "median")
 
         elif plot_current and not plot_slices:
             # if you want to plot slices, allow leveling Z
