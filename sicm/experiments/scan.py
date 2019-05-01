@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from copy import deepcopy
+from collections import Counter
 
 from sicm import analysis, plots
 from sicm.utils import utils
@@ -87,6 +88,20 @@ class Scan(Experiment):
                     self._data["X(um)"].max() - self._data["X(um)"].min(),
                     self._data["Y(um)"].max() - self._data["Y(um)"].min()))
 
+    def _calculate_step_size(self):
+        """Calculate Step Size"""
+        uniqs, cnts = np.unique(self.dsdata["LineNumber"], return_counts = True)
+        x_diffs = np.diff(self.dsdata["X(um)"].flatten())
+        y_diffs = np.diff(self.dsdata["Y(um)"].flatten())
+
+        # https://stackoverflow.com/q/2652368
+        # y_idx = np.argwhere(np.sign(x_diffs[:-1]) != np.sign(x_diffs[1:])).flatten() + 1
+
+        y_step = np.max(np.abs(y_diffs))
+        x_step = np.sort(np.abs(x_diffs))[-2]
+
+        return x_step, y_step
+
 
     def _downsample_surface_data(self, X, Y, Z, by = 10):
         """Downsamples data available for plotting by factor `by`
@@ -104,6 +119,58 @@ class Scan(Experiment):
 
         return X[by], Y[by], Z[by]
 
+
+    def _aggregate_surface_data2(self, X, Y, Z):
+        """Aggregate data for X, Y coordinates that are within noise level
+
+        Parameters
+        --------------
+        X, Y, Z: array-like
+            X, Y coordinates of measurements Z
+
+        Returns
+        ------------------
+        X_, Y_, Z_: array-like
+            x, y coordinates of measurements z
+        """
+        # Measurements are grouped together for y_axis by linenumber
+        linenos = np.squeeze(self.dsdata["LineNumber"])
+        uniqs, cnts = np.unique(linenos, return_counts=True)
+        n_lines = len(uniqs)
+
+        X_ = []
+        Y_ = []
+        Z_ = []
+        for n in uniqs:
+            n_mask = np.nonzero(linenos == n)[0]
+            # take most common value for Y, median ,mean should work equally well
+            ## Elements with equal counts are ordered arbitrarily!
+            line_y = Counter(Y[n_mask]).most_common(1)[0][0]
+            line_x = X[n_mask]
+            line_z = Z[n_mask]
+            # Take some arbitrary number of points on X axis
+            ## x-axis is linearly increasing so take enough points!
+            try:
+                split_ids = np.linspace(0, len(line_x), 2*n_lines + 1, dtype = np.int)
+                assert len(split_ids) == len(set(split_ids))
+            except AssertionError as e: # should never happen actually
+                split_ids = np.sort(np.unique(split_ids))
+
+            # Split to `n_lines` intervals
+            line_x = np.split(line_x, split_ids[1:-1])
+            line_z = np.split(line_z, split_ids[1:-1])
+            # Describe each interval by mean
+            ## median / trim_mean are alternatives
+            line_x = [np.mean(x) for x in line_x]
+            line_z = [np.mean(z) for z in line_z]
+            # Replicate y-value as needed
+            line_y = [line_y] * len(line_x)
+            X_.extend(line_x); Y_.extend(line_y); Z_.extend(line_z)
+
+        # Make sure arrays of same length
+        assert len(set(len(i) for i in [X_, Y_, Z_])) == 1
+
+        return np.asarray(X_), np.asarray(Y_), np.asarray(Z_)
 
     def plot_hopping_scan(self, sel = None):
         """Plot results of hopping scan
@@ -125,7 +192,59 @@ class Scan(Experiment):
         hop = Hops(self._data, self.idxs, self.name, self.date)
         hop.plot(sel, fname = fpath, do_annotate = not self.is_it)
 
-    def _plot_approach(self):
+    def _select_approach(self, data, location = None):
+        """Select approach
+
+        By default selects the very first approach to surface.
+
+        Paramters
+        --------------
+        location: None or tuple
+            If tuple, then (X, Y) coordinates of approach to select
+
+        Returns
+        -------------------
+        sel: array-like
+            Bool array indicating data to select.
+        """
+        if location is None:
+            uniqs, cnts = np.unique(data["LineNumber"], return_counts=True)
+            # it is the longest one or the second one or "2", any works
+            # hardcodding 2 may be the most robust!
+            approach_lineno = uniqs[np.argmax(cnts)]
+            sel = data["LineNumber"] == approach_lineno
+            loc_str = ""
+        else:
+            dsdata = self.dsdata # work with downsampled data
+            x, y = location
+            x_step, y_step = self._calculate_step_size()
+            x_sel = np.logical_and( dsdata["X(um)"] > x - x_step / 3,
+                                    dsdata["X(um)"] < x + x_step / 3)
+            y_sel = np.logical_and( dsdata["Y(um)"] > y - x_step / 3,
+                                    dsdata["Y(um)"] < y + y_step / 3)
+            xy_sel = np.logical_and(x_sel, y_sel)
+            approach_lineno = np.unique(dsdata["LineNumber"][xy_sel])
+            if len(approach_lineno) > 1:
+                msg =   "Found {} approaches in selected location. Picking one randomly."\
+                        .format(np.int(len(approach_lineno)))
+                print(msg)
+                approach_lineno = np.random.choice(approach_lineno)
+            else:
+                approach_lineno = approach_lineno[0]
+            sel = data["LineNumber"] == approach_lineno
+
+
+        x_loc = np.median(data["X(um)"][sel])
+        y_loc = np.median(data["Y(um)"][sel])
+        if location is not None:
+            loc_str = "X{}Y{}".format(  np.str(np.around(x_loc, 3)).replace(".", "p"),
+                                        np.str(np.around(y_loc, 3)).replace(".", "p"))
+
+        msg = "Selected approach @ X:{:.3f}, Y:{:.3f} um".format(x_loc, y_loc)
+        print(msg)
+        return sel, loc_str
+
+    def plot_approach(self, location = None):
         """Plots approach of a scan
 
         Normally, we don't care about an approach of a scan, but occasionaly
@@ -133,11 +252,8 @@ class Scan(Experiment):
         """
         # extract approach from raw data
         data = self._data
-        uniqs, cnts = np.unique(data["LineNumber"], return_counts=True)
-        # it is the longest one or the second one or "2", any works
-        # hardcodding 2 may be the most robust!
-        approach_lineno = uniqs[np.argmax(cnts)]
-        sel = data["LineNumber"] == approach_lineno
+        sel, loc_str = self._select_approach(data, location)
+
         x_ax = data["Z(um)"][sel] # [np.cumsum(data["dt(s)"][sel])]
         x_ax = [x_ax - np.min(x_ax)]
         y_ax = []
@@ -158,7 +274,7 @@ class Scan(Experiment):
         x_lab = ["Z(um)"]# ["time(s)"]
 
         fpath = self.get_fpath()
-        fpath = utils.make_fname(fpath, "_approach")
+        fpath = utils.make_fname(fpath, "_approach{}".format(loc_str), ext = ".png")
         plots.plot_generic(x_ax, y_ax, x_lab, y_lab, fname = fpath)
 
 
@@ -168,32 +284,31 @@ class Scan(Experiment):
         _, _ = hop.annotate_peaks(sel, window_size = window_size, save_dir = self.datadir,
                                     do_plot = True)
 
-    def plot_slice( self, x, y, z, z_lab = "Z", ax = None, title = None,
-                    fname = None, cbar_lims = (None, None)):
-        """Plot a single slice"""
+
+    def plot_projection(self, x, y, z, z_lab = "Z", ax = None, title = None,
+                    fname = None, colors = None, center = False):
+        """Plot a 3D pojection
+        """
         if ax is None:
-            fig, ax = plt.subplots(1, 1)
+            fig = plt.figure()
+            ax = fig.add_subplot(1, 1, 1, projection = "3d")
             fig.tight_layout()
         else:
             fig = ax.get_figure()
 
-        if any(cl is None for cl in cbar_lims):
-            # Option 2: Variable colorbar, but better contrast for each slice
-            conts = ax.tricontourf(x, y, z, cmap = "gray", levels = 10) # or greys
-            cbar = fig.colorbar(conts, format = "%.4E", drawedges = True)
-            # cbar.set_clim(*cbar_lims) # this appears not helpful
-        else:
-            # Option 1: Same colorbar for all slices
-            norm = mpl.colors.Normalize(vmin = cbar_lims[0], vmax = cbar_lims[1])
-            conts = ax.tricontourf(x, y, z, cmap = "gray", levels = 10, norm = norm) # or greys
-            cbar = plots.make_colorbar(fig, conts.cmap, conts.levels, *cbar_lims)
+        if center:
+            z = z - np.nanmin(z)
+            x = x - np.nanmean(x)
+            y = y - np.nanmean(y)
 
-
-        cbar.ax.set_ylabel(z_lab)
-
+        trsf = ax.plot_trisurf(x, y, z, cmap='binary')
         ax.set_xlabel('X(um)')
         ax.set_ylabel('Y(um)')
+        ax.set_zlabel(z_lab)
 
+        if colors is not None:
+            trsf.set_array(colors)
+            trsf.autoscale()
 
         # Set descriptive title
         if title is not None:
@@ -206,7 +321,72 @@ class Scan(Experiment):
         if len(plt.get_fignums()) > 3:
             plt.close('all')
 
-    def plot_slices(self, tilt, n_slices = 10):
+    def plot_slice( self, x, y, z, z_lab = "Z", ax = None, title = None,
+                    fname = None, cbar_lims = (None, None), center = False):
+        """Plot a single slice"""
+        if ax is None:
+            fig, ax = plt.subplots(1, 1)
+            fig.tight_layout()
+        else:
+            fig = ax.get_figure()
+
+        if center:
+            z = z - np.nanmin(z)
+            x = x - np.nanmean(x)
+            y = y - np.nanmean(y)
+
+        if np.any(~np.isfinite(z)): # handle (expected) nans in data gracefully
+            ## A) would work if just few nans
+            ## https://github.com/matplotlib/matplotlib/issues/10167
+            # triang = mpl.tri.Triangulation(x, y)  # Delaunay triangulation of all points
+            # point_mask = ~np.isfinite(z)   # Points to mask out.
+            # tri_mask = np.any(point_mask[triang.triangles], axis = 1)  # Triangles to mask out.
+            # triang.set_mask(tri_mask)
+            # levels = np.linspace(np.nanmin(z), np.nanmax(z), 10)
+            # conts = ax.tricontourf(triang, z, cmap = "gray", levels = levels, norm = norm)
+
+            ## B) try countourf instead
+            ## Reshape to square matrix
+            # a = np.int(np.sqrt(len(z)))
+            # x_sq = np.reshape(x[:a**2], [a]*2)
+            # y_sq = np.reshape(y[:a**2], [a]*2)
+            # z_sq = np.reshape(z[:a**2], [a]*2)
+            ## Flip every second column ? Is this needed???
+            # x_sq[1::2, :] = x_sq[1::2, ::-1]
+            # y_sq[1::2, :] = y_sq[1::2, ::-1]
+            # z_sq[1::2, :] = z_sq[1::2, ::-1]
+            # conts = ax.contourf(x_sq, y_sq, z_sq, cmap = "gray", levels = 10, norm = norm)
+
+            raise NotImplementedError("Sparse measurements not implemented!")
+        else:
+            if any(cl is None for cl in cbar_lims):
+                # Option 2: Variable colorbar, but better contrast for each slice
+                conts = ax.tricontourf(x, y, z, cmap = "gray", levels = 10) # or greys
+                cbar = fig.colorbar(conts, format = "%.4E", drawedges = True)
+                # cbar.set_clim(*cbar_lims) # this appears not helpful
+            else:
+                # Option 1: Same colorbar for all slices
+                norm = mpl.colors.Normalize(vmin = cbar_lims[0], vmax = cbar_lims[1])
+                conts = ax.tricontourf(x, y, z, cmap = "gray", levels = 10, norm = norm) # or greys
+                cbar = plots.make_colorbar(fig, conts.cmap, conts.levels, *cbar_lims)
+
+        cbar.ax.set_ylabel(z_lab)
+
+        ax.set_xlabel('X(um)')
+        ax.set_ylabel('Y(um)')
+
+        # Set descriptive title
+        if title is not None:
+            ax.set_title(title)
+        # Save figure
+        if fname is not None:
+            utils.save_fig(fname, ext = ".png")
+
+        # Explicitly close all figures if already too many;
+        if len(plt.get_fignums()) > 3:
+            plt.close('all')
+
+    def plot_slices(self, tilt, n_slices = 10, z_range = "common"):
         """Plot measurmement values at different z-locations"""
         # Look at raw data
         data = self._trim_data(self._data, self.x_trim, self.y_trim)
@@ -224,6 +404,8 @@ class Scan(Experiment):
 
         # Vectorization possible?
         z_axs = []
+        z_surfs = []
+
         tilt = tilt.flatten() # CHECK that correctly ordered !
         for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
             # if trimmed manually, some points will be out-of-grid and are discarded
@@ -231,16 +413,25 @@ class Scan(Experiment):
                 continue
             # Extract data for approach and following retraction at given
             # location X, Y that is descibred by i,i+1 LineNumber pair
-            # discarding point at the very bottom from both sides
-            z_down = approach_data["Z(um)"][approach_data["LineNumber"] == aln][:-1]
-            z_up = retract_data["Z(um)"][retract_data["LineNumber"] == rln][1:]
+            # discarding (very variable) point at the very bottom from both sides
+            z_down = approach_data["Z(um)"][approach_data["LineNumber"] == aln]
+            z_up = retract_data["Z(um)"][retract_data["LineNumber"] == rln]
             # Handle the up/down data as of equal nature and combine them to an array
-            z = np.concatenate((z_down, z_up))
+            z = np.concatenate((z_down[:-1], z_up[1:]))
             # Remove tilt at given X,Y and set origin to the lowest location
             z = z - tilt[i]
-            z = z - np.min(z)
+            z_min = np.min(z)
+            z = z - z_min
             # Add to list of arrays
             z_axs.append(z)
+
+            ## keep surface values, just for interest
+            z_surf = np.asarray([z_down[-1], z_up[1]])
+            z_surf = z_surf - tilt[i]
+            # z_surf = z_surf - z_min
+            # Add to list
+            z_surfs.append(np.mean(z_surf))
+
         # Be conservvative and slice only where we have data for all hops.
         # This will trhow away lot of information if even a single approach
         # is much shorter than other approaches.
@@ -249,7 +440,13 @@ class Scan(Experiment):
         # The approach is less reliable for far-away z-coordinates (>75% of z_range)
         # because occasionally only retract points will be considered for given X,Y.
         z_diffs = [zz.max() - zz.min() for zz in z_axs]
-        slices_z_locs, z_delta = np.linspace(0, np.min(z_diffs), n_slices, retstep = True)
+        if z_range.lower().startswith("c"):
+            interval_end = np.min(z_diffs)
+        elif z_range.lower().startswith("a"):
+            raise NotImplementedError("Sparse measurements are not implemented!")
+            # interval_end = np.max(z_diffs)
+
+        slices_z_locs, z_delta = np.linspace(0, interval_end, n_slices, retstep = True)
         # Adjust the interval by delta-multiplier*z_delta up
         delta_multiplier  = 0.25 # half-width of interval
         slices_z_locs, z_delta = np.linspace(delta_multiplier * z_delta,
@@ -260,6 +457,8 @@ class Scan(Experiment):
         slices_shape = tilt.shape + (n_slices, ) + (len(keypairs), )
         measurements = np.full(slices_shape, np.nan)
         stds = np.full_like(measurements, np.nan)
+        v_surfs = np.full(tilt.shape + (len(keypairs), ), np.nan)
+        good_keys = []
 
         for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
             # if trimmed manually, some points will be out-of-grid and are discarded
@@ -267,26 +466,36 @@ class Scan(Experiment):
                 continue
 
             for k, key in enumerate(keypairs.keys()):
-                try:
-                    # Pull out measurmement, discarding point at the very
-                    # bottom from both sides
-                    v_down = data[key][data["LineNumber"] == aln][:-1]
-                    v_up = data[key][data["LineNumber"] == rln][1:]
-                    v_all = np.concatenate((v_down, v_up))
-                    # Normalize by value at the top of approach
-                    # consider initial 250ms as period for sampling max value
-                    # take almost maximum, but avoid picking an outlier
-                    t = np.cumsum(data["dt(s)"][data["LineNumber"] == aln][:-1])
-                    idxs = np.nonzero(t < 250e-3)[0]
-                    v_all = v_all / np.quantile(v_all[idxs], 0.95)
+                # one of the two may not be always present.
+                if key not in data.keys():
+                    continue
+                else:
+                    good_keys.append(key)
+                # Pull out measurmement, discarding point at the very
+                # bottom from both sides
+                v_down = data[key][data["LineNumber"] == aln]
+                v_up = data[key][data["LineNumber"] == rln]
+                v_all = np.concatenate((v_down[:-1], v_up[1:]))
+                # Normalize by value at the top of approach
+                # consider initial 250ms as period for sampling max value
+                # take almost maximum, but avoid picking an outlier
+                t = np.cumsum(data["dt(s)"][data["LineNumber"] == aln][:-1])
+                idxs = np.nonzero(t < 250e-3)[0]
+                scaler = np.quantile(v_all[idxs], 0.95)
+                v_all = v_all / scaler
 
-                    for j, szl in enumerate(slices_z_locs):
-                        z = z_axs[i]
-                        # Look always at slice of thicknes z_delta centeted around given z
-                        # Tested also slice thickness z_delta/2 but results looked alike.
-                        cond1 = z >= (szl - z_delta * delta_multiplier)
-                        cond2 = z < (szl + z_delta * delta_multiplier)
-                        sel = np.nonzero(np.logical_and(cond1, cond2))[0]
+                ## Preserve surface values, just for interest
+                v_surf = np.asarray([v_down[-1], v_up[1]]) / scaler
+                v_surfs[i, k] = np.mean(v_surf)
+
+                for j, szl in enumerate(slices_z_locs):
+                    z = z_axs[i]
+                    # Look always at slice of thicknes z_delta centeted around given z
+                    # Tested also slice thickness z_delta/2 but results looked alike.
+                    cond1 = z >= (szl - z_delta * delta_multiplier)
+                    cond2 = z < (szl + z_delta * delta_multiplier)
+                    sel = np.nonzero(np.logical_and(cond1, cond2))[0]
+                    if len(sel) > 1:
                         v_sub = v_all[sel]
 
                         # Tested mean and mean, result was alike
@@ -299,8 +508,8 @@ class Scan(Experiment):
                                     "Measurement is not reliable!"
                             msg = msg.format(key, i, j, k)
                             print(msg)
-                except KeyError as e:
-                    pass # one of the two may not be always present.
+                    else:
+                        measurements[i, j, k] = np.nan
 
         # Pull out X, Y coordinates data
         n_points = len(tilt)
@@ -310,12 +519,13 @@ class Scan(Experiment):
         # Iterate over measured parameters
         for i, (key, label) in enumerate(keypairs.items()):
             val = np.squeeze(measurements[:,:, i])
-
             # Skip given measurmement if we dont have data
+            if key not in good_keys: continue
             if np.isnan(val).all():
-                continue
+                raise Exception("All measurements for {} are NaN!".format(key))
+
             # Make colorbar extents common to all slices for given key
-            cbar_lims = (np.min(val), np.max(val))
+            cbar_lims = (np.nanmin(val), np.nanmax(val))
             # Get path for saving
             fpath = self.get_fpath()
             fpath = utils.make_fname(fpath, subdirname = "{}/{}".format("slices", key))
@@ -329,6 +539,17 @@ class Scan(Experiment):
                 self.plot_slice(X, Y, slice, label,
                                 title = title, fname = fname,
                                 cbar_lims = cbar_lims)
+
+            # Plot also Surface measuremnets
+            slice = np.squeeze(v_surfs[:, i])
+            title = "slice {:d} @ {}".format(-1, "surface")
+            fname = utils.make_fname(fpath, "_" + "surface")
+            self.plot_slice(X, Y, slice, label,
+                            title = title, fname = fname)
+            # not implemented
+            # fname = utils.make_fname(fpath, "_" + "surface_projection")
+            # self.plot_projection(X, Y, np.asarray(z_surfs), "Z(um)",
+            #                 title = title, fname = fname, colors = slice)
 
     def plot_surface(self, plot_current = False, plot_slices = False):
         """Plot surface as contours and 3D"""
@@ -344,10 +565,14 @@ class Scan(Experiment):
             # Pick current values with consistent coordinate only
             # This works as long as the movemement in Z is just due to noise
             Z_aux = np.squeeze(result["Z(um)"])
-            uniqs, cnts = np.unique(Z_aux, return_counts = True)
-            to_keep = np.nonzero(Z_aux == uniqs[np.argmax(cnts)])[0]
+            ## DOWNSAMPLE
+            # uniqs, cnts = np.unique(Z_aux, return_counts = True)
+            # to_keep = np.nonzero(Z_aux == uniqs[np.argmax(cnts)])[0]
             # Note that downsampling is stronger for most datasets! (see the function body)
-            X, Y, Z = self._downsample_surface_data(X, Y, Z, to_keep)
+            # X, Y, Z = self._downsample_surface_data(X, Y, Z, to_keep)
+            ## AGGREGATE: preferred!
+            ## TODO: clean up on MERGE
+            X, Y, Z = self._aggregate_surface_data2(X, Y, Z)
 
         elif plot_current and not plot_slices:
             # if you want to plot slices, allow leveling Z
@@ -379,7 +604,8 @@ class Scan(Experiment):
             # Filled countour with triangulation
 
             ax = fig.add_subplot(2, 2, 1)
-            self.plot_slice(X[:npoints], Y[:npoints], Z_sq.flatten(), z_lab, ax)
+            self.plot_slice(X[:npoints], Y[:npoints], Z_sq.flatten(), z_lab, ax,
+                            center = False)
             # C = ax.tricontourf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='viridis')
             # CB = fig.colorbar(C)
             # ax.set_xlabel('X(um)')
@@ -388,10 +614,8 @@ class Scan(Experiment):
 
             # Surface in 3D projection
             ax = fig.add_subplot(2, 2, 2, projection='3d')
-            ax.plot_trisurf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='binary')
-            ax.set_xlabel('X(um)')
-            ax.set_ylabel('Y(um)')
-            ax.set_zlabel(z_lab)
+            self.plot_projection(X[:npoints], Y[:npoints], Z_sq.flatten(), z_lab, ax,
+                                center = False)
 
             # # Filled contours without triangulation
             # ax = fig.add_subplot(2, 2, 3)
