@@ -124,7 +124,6 @@ class ExperimentList(object):
         elist = []
         keys = []
         for dd, en, ob in zip(datadirs, exp_names, objs):
-            import pdb; pdb.set_trace()
             experiment = ob(dd, en)
             keys.append(sorted(list(experiment.data.keys())))
             elist.append(experiment)

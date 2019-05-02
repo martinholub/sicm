@@ -3,6 +3,7 @@ import numpy as np
 import os
 from matplotlib import pyplot as plt
 from copy import deepcopy
+from collections import OrderedDict
 
 from sicm import plots
 from sicm.utils import utils
@@ -28,7 +29,6 @@ class Approach(Experiment):
 
             sig = Signal(z_ax[sel], y_ax[sel], self.datadir, self.name)
             sig.plot("Z [um]", "Current [nA]", legend = "")
-
 
 class ApproachList(ExperimentList):
     """Construct List of Approach Objects
@@ -62,12 +62,13 @@ class ApproachList(ExperimentList):
             """Helper fun
             Combine keys for dictinaries with identical keys"""
             # Pull out keys and values
+            # Dicts should be OrderedDict!
             keys1 = dict1.keys()
             keys2 = dict2.keys()
             values1 = dict1.values()
             values2 = dict2.values()
             # Dont attempt anythong fancy and fail if keys are not identical
-            assert keys1 == keys2
+            assert list(keys1) == list(keys2)
 
             # Stitch values
             try: # Assume arrays
@@ -90,9 +91,12 @@ class ApproachList(ExperimentList):
             for i in range(len(self.list) - 1):
                 if i == 0:
                     dset1 = deepcopy(getattr(stitch_obj, dset_str))
+                    dset1 = OrderedDict(sorted(dset1.items()))
                 else:
                     dset1 = dset_stitch
+                    # should be sorted already
                 dset2 = deepcopy(getattr(self.list[i + 1], dset_str))
+                dset2 = OrderedDict(sorted(dset2.items()))
                 try:
                     dset_stitch = _stitch_dicts(dset1, dset2)
                 except Exception as e:

@@ -46,7 +46,6 @@ class Hops(object):
         subkeys = ['Z(um)', 'LockinPhase', 'Current1(A)', 'time(s)']
         subkeys.extend(["LockinAmplitude"]) # comment if not desired
         subresult = {k:v[sel] for k,v in self.data.items() if k in subkeys}
-        import pdb; pdb.set_trace()
         idxs = self.idxs[np.isin(self.idxs, sel)]
         idxs = idxs - sel[0]
         return subresult, idxs
@@ -94,7 +93,6 @@ class Hops(object):
         handles = []
         labels = []
         data_, annot = self.annotate_peaks(sel, xkey, do_plot = False)
-        import pdb; pdb.set_trace()
         for i, (k, v) in enumerate(data_.items()):
             if k == xkey: continue # dont plot x vs x
             peaks_id = annot[k.lstrip("_")]["peaks_id"]
