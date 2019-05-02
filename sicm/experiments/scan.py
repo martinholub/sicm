@@ -182,8 +182,6 @@ class Scan(Experiment):
             import pdb; pdb.set_trace()
             return np.asarray(X_), np.asarray(Y_), np.asarray(Z_)
 
-
-
     def _aggregate_surface_data2(self, X, Y, Z):
         """Aggregate data for X, Y coordinates that are within noise level
 
