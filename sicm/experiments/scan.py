@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from copy import deepcopy
 from collections import Counter
+from scipy.stats import trim_mean
 
 from sicm import analysis, plots
 from sicm.utils import utils
@@ -346,7 +347,6 @@ class Scan(Experiment):
         _, _ = hop.annotate_peaks(sel, window_size = window_size, save_dir = self.datadir,
                                     do_plot = True)
 
-
     def plot_projection(self, x, y, z, z_lab = "Z", ax = None, title = None,
                     fname = None, colors = None, center = False):
         """Plot a 3D pojection
@@ -464,6 +464,15 @@ class Scan(Experiment):
         retract_linenos = retract_linenos[np.in1d(retract_linenos, uniqs)]
         retract_data, retract_idxs = downsample_to_linenumber(data, retract_linenos, "all")
 
+        # extract bulk current from intial approach from raw data
+        data_all = self._data
+        sel, _ = self._select_approach(data_all, None)
+        approach_current = data_all["Current1(A)"][sel]
+        approach_t = np.cumsum(data_all["dt(s)"][sel])
+        idxs = np.nonzero(approach_t < 250e-3)[0]
+        # bulk_current = np.quantile(approach_current[idxs], 0.95)
+        bulk_current = trim_mean(approach_current[idxs], 0.1)
+
         # Vectorization possible?
         z_axs = []
         z_surfs = []
@@ -510,7 +519,7 @@ class Scan(Experiment):
 
         slices_z_locs, z_delta = np.linspace(0, interval_end, n_slices, retstep = True)
         # Adjust the interval by delta-multiplier*z_delta up
-        delta_multiplier  = 0.25 # half-width of interval
+        delta_multiplier  = 0.45 # relative half-width of interval
         slices_z_locs, z_delta = np.linspace(delta_multiplier * z_delta,
                                 slices_z_locs[-1] - delta_multiplier * z_delta, n_slices, retstep = True)
 
@@ -544,6 +553,7 @@ class Scan(Experiment):
                 t = np.cumsum(data["dt(s)"][data["LineNumber"] == aln][:-1])
                 idxs = np.nonzero(t < 250e-3)[0]
                 scaler = np.quantile(v_all[idxs], 0.95)
+                scaler = bulk_current
                 v_all = v_all / scaler
 
                 ## Preserve surface values, just for interest
