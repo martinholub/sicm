@@ -8,8 +8,8 @@ import re
 
 import matplotlib as mpl
 from matplotlib import pyplot as plt
-from matplotlib.ticker import FormatStrFormatter
 from mpl_toolkits import mplot3d
+from matplotlib.ticker import FormatStrFormatter
 
 from sicm import analysis
 from sicm.utils import utils
@@ -308,34 +308,3 @@ def errorplot_generic(  Xs, Ys, Y_errs, x_lab = None, y_lab = None, legend = Non
         utils.save_fig(fname)
     # recover plotting style
     mpl.rcParams.update(mpl.rcParamsDefault)
-
-def make_colorbar(fig, cmap, levels, cmin, cmax):
-    """Make nice colorbar
-
-    Parameters
-    ------------
-    fig: matplotlib.figure.Figure
-    cmap: matplotlib.colors.Colormap
-    levels: array-like
-        Levels of countour plot
-    cmin: float
-        Minimum relative value for colorbar color
-    cmax: float
-        Maximum relative value for colorbar color
-
-    Returns
-    ------------
-    cbar: matplotlib.pyplot.Colorbar
-
-    References
-    ---------
-    [1] https://stackoverflow.com/questions/44498631/continuous-colorbar-with-contour-levels
-    """
-    norm = mpl.colors.Normalize(vmin = cmin, vmax = cmax)
-    sm = plt.cm.ScalarMappable(norm = norm, cmap = cmap)
-    sm.set_array([])
-    ticks = np.linspace(levels.min(), levels.max(), 6)
-    # setting boundaries clips off colorbar extends that are not in current lelves
-    cbar = fig.colorbar(sm, ticks = ticks, # boundaries = levels,
-                        format = "%.3f", drawedges = True)
-    return cbar

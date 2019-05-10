@@ -63,6 +63,8 @@ class Experiment(object):
                 result, idxs = io.downsample_to_linenumber(data, linenos, "all")
             else:
                 # hopping_scan
+                # Start with 2 to Include also the very first approach, to get complete data!
+                # Would need to take only correspondig part of datat
                 linenos = np.arange(5, max(uniqs), 3)
                 result, idxs = io.downsample_to_linenumber(data, linenos, which)
 

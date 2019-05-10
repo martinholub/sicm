@@ -10,7 +10,7 @@ from scipy.signal import detrend
 from scipy import stats
 
 from sicm.utils import utils
-from sicm import plots
+from sicm.plots import plots
 from sicm.filters import LowPassButter
 from math import ceil
 
@@ -53,15 +53,7 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
     """
     # TODO: allow non-square matrices
     # Reshape to square matrix
-    a = np.int(np.sqrt(len(Z)))
-    X_sq = np.reshape(X[:a**2], [a]*2);
-    Y_sq = np.reshape(Y[:a**2], [a]*2);
-    Z_sq = np.reshape(Z[:a**2], [a]*2);
 
-    ## flip every second column; enables `contourf` plot
-    #X_sq[1::2, :] = X_sq[1::2, ::-1]
-    #Y_sq[1::2, :] = Y_sq[1::2, ::-1]
-    #Z_sq[1::2, :] = Z_sq[1::2, ::-1]
     do_correct = True
     if interactive:
         # Select points interactively
@@ -69,8 +61,7 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
             fig = plt.figure(figsize = (6, 4))
             ax = fig.add_subplot(1, 1, 1, projection='3d')
             ax.set_title("Click on 3 Points To Select Them")
-            ax.scatter(X_sq.flatten(), Y_sq.flatten(), Z_sq.flatten(),
-                        c = Z_sq.flatten(), marker = "^", picker = 5,
+            ax.scatter(X, Y, Z, c = Z, marker = "^", picker = 5,
                         alpha = 0.3, cmap = "viridis")
             ax.set_xlabel("X [um]"); ax.set_ylabel("Y [um]"); ax.set_zlabel(z_lab)
             picker = Picker()
@@ -90,10 +81,7 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
             do_correct = False
             print("No tilt correction done!")
     else:
-        # TODO: Implement plane fitting
-        p1 = np.asarray(((X_sq[1, 1], Y_sq[1, 1], Z_sq[1, 1])))
-        p2 = np.asarray((X_sq[1, a-1], Y_sq[1,a-1], Z_sq[1, a-1]))
-        p3 = np.asarray((X_sq[a-1, 1], Y_sq[a-1, 1], Z_sq[a-1, 1]))
+        raise NotImplementedError("Automatic tilt correction is not implemented!")
 
     if do_correct:
 
@@ -109,8 +97,8 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
         d = np.dot(cp, p3)
 
         # Compute tilt and correct for it
-        Z_tilt = (d - a * X_sq - b * Y_sq) / c
-        Z_sq_corr = Z_sq - (Z_tilt - np.min(Z_tilt))
+        Z_tilt = (d - a * X - b * Y) / c
+        Z_corr = Z - (Z_tilt - np.min(Z_tilt))
 
         if is_debug:
             # Visualize selected points, their plane and the correctio
@@ -121,20 +109,17 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
                 ax.set_title("Points Selected for Tilt Correction")
 
                 ax.scatter(*zip(p1, p2, p3), s = 80, c = "r", marker="^")
-                ax.plot_trisurf(X_sq.flatten(), Y_sq.flatten(), Z_sq.flatten(),
-                                color = "gray", alpha = 0.2)
-                ax.plot_trisurf(X_sq.flatten(), Y_sq.flatten(), Z_tilt.flatten(),
-                                color = "red", alpha = 0.2)
-                ax.plot_trisurf(X_sq.flatten(), Y_sq.flatten(), Z_sq_corr.flatten(),
-                                color = "green", alpha = 0.2)
+                ax.plot_trisurf(X, Y, Z, color = "gray", alpha = 0.2)
+                ax.plot_trisurf(X, Y, Z_tilt, color = "red", alpha = 0.2)
+                ax.plot_trisurf(X, Y, Z_corr, color = "green", alpha = 0.2)
                 ax.set_xticks([], []); ax.set_yticks([], []), ax.set_zticks([], []);
                 plt.show()
 
     else: # no correction for tilt done because user has not selected 3+ points.
-        Z_sq_corr = Z_sq
-        Z_tilt = np.zeros_like(Z_sq)
+        Z_corr = Z
+        Z_tilt = np.zeros_like(Z)
 
-    return (X_sq, Y_sq , Z_sq_corr, Z_tilt)
+    return (Z_corr, Z_tilt)
 
 
 

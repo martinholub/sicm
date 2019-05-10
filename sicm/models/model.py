@@ -1,4 +1,5 @@
-from sicm import io, analysis, plots, filters
+from sicm import io, analysis, filters
+from sicm.plots import plots
 from sicm.utils import utils
 
 import numpy as np

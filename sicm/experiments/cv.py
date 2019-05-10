@@ -1,5 +1,5 @@
 from .experiment import Experiment
-from sicm import plots
+from sicm.plots import plots
 
 class CV(Experiment):
     def __init__(self, datadir, exp_name):

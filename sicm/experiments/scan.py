@@ -5,7 +5,8 @@ from copy import deepcopy
 from collections import Counter
 from scipy.stats import trim_mean
 
-from sicm import analysis, plots
+from sicm import analysis
+from sicm.plots import plots, surface
 from sicm.utils import utils
 from sicm.io import downsample_to_linenumber
 from .experiment import Experiment
@@ -120,70 +121,7 @@ class Scan(Experiment):
 
         return X[by], Y[by], Z[by]
 
-    def _aggregate_surface_data(self, X, Y, Z, what = "median"):
-        """"Compute statistics at given X, Y locations
-
-        TODO: Combine X, Y loci within some noise level of X, Y piezos.
-        """
-        # x is increasing linearly, but has plenty of points for each X
-        # y is mostly constant
-        # TODO: make this more robust
-        x_noise = np.quantile(np.abs(np.diff(X)), 0.45) / 2
-        y_noise = np.quantile(np.abs(np.diff(Y)), 0.975) / 2
-
-        X_ = []
-        Y_ = []
-        Z_ = []
-        for i, (x, y, z) in enumerate(zip(X, Y, Z)):
-            if i == 0:
-                past_x = x
-                past_y = y
-                past_z = z
-                temp_x = []
-                temp_y = []
-                temp_z = []
-                retry_count = 0
-                continue
-
-            if  (np.logical_and(x >= past_x - x_noise, x <= past_x + x_noise) or \
-                np.logical_and(x >= past_x - x_noise, x <= past_x + x_noise)) and \
-                np.logical_and(y >= past_y - y_noise, y <= past_y + y_noise):
-
-                temp_x.extend([past_x])
-                temp_y.extend([past_y])
-                temp_z.extend([past_z])
-            else:
-                try:
-                    retry_count += 1
-                    z_ = np.median(temp_z) if what == "median" else np.mean(temp_z)
-                    values, counts = np.unique(temp_x, return_counts=True)
-                    x_ =  values[np.argmax(counts)]
-                    values, counts = np.unique(temp_y, return_counts=True)
-                    y_ = values[np.argmax(counts)]
-                    X_.extend([x_])
-                    Y_.extend([y_])
-                    Z_.extend([z_])
-                    temp_x = []
-                    temp_y = []
-                    temp_z = []
-                    retry_count = 0
-                except:
-                    if retry_count > 1:
-                        X_.extend([past_x])
-                        Y_.extend([past_y])
-                        Z_.extend([past_z])
-                    else:
-                        pass
-
-                past_x = x
-                past_y = y
-                past_z = z
-
-            assert len(set(len(j) for j in [Z_, Y_, X_])) == 1
-            import pdb; pdb.set_trace()
-            return np.asarray(X_), np.asarray(Y_), np.asarray(Z_)
-
-    def _aggregate_surface_data2(self, X, Y, Z):
+    def _aggregate_surface_data(self, X, Y, Z):
         """Aggregate data for X, Y coordinates that are within noise level
 
         Parameters
@@ -235,26 +173,6 @@ class Scan(Experiment):
 
         return np.asarray(X_), np.asarray(Y_), np.asarray(Z_)
 
-    def plot_hopping_scan(self, sel = None):
-        """Plot results of hopping scan
-
-        If data is aquired with QTF setup, voltage and current are not available.
-        """
-        exp_name  = self.name
-        date = self.date
-        plots.plot_sicm(self.dsdata, sel, "Hopping Scan", exp_name, date)
-
-    def plot_hops(self, sel = None, do_save = True):
-        """todo"""
-        if do_save:
-            fpath = self.get_fpath()
-        else:
-            fpath = None
-
-        self._data["time(s)"] = np.cumsum(self._data["dt(s)"])
-        hop = Hops(self._data, self.idxs, self.name, self.date)
-        hop.plot(sel, fname = fpath, do_annotate = not self.is_it)
-
     def _select_approach(self, data, location = None):
         """Select approach
 
@@ -303,15 +221,65 @@ class Scan(Experiment):
             loc_str = "X{}Y{}".format(  np.str(np.around(x_loc, 3)).replace(".", "p"),
                                         np.str(np.around(y_loc, 3)).replace(".", "p"))
 
-        msg = "Selected approach @ X:{:.3f}, Y:{:.3f} um".format(x_loc, y_loc)
-        print(msg)
+            msg = "Selected approach @ X:{:.3f}, Y:{:.3f} um".format(x_loc, y_loc)
+            print(msg)
         return sel, loc_str
+
+    def annotate_peaks(self, sel = None, window_size = 250):
+        """Mark locations of low-peaks in data
+
+        Low peaks correspond to datapoints acquired closest to surface.
+
+        Parameters
+        --------
+        sel: array-like
+        window_size: int
+            Width of range in which to look for peak.
+        """
+        hop = Hops(self.data, self.idxs, self.name, self.date)
+        _, _ = hop.annotate_peaks(sel, window_size = window_size, save_dir = self.datadir,
+                                    do_plot = True)
+
+    def plot_hopping_scan(self, sel = None):
+        """Plot results of hopping scan
+
+        If data is aquired with QTF setup, voltage and current are not available.
+        """
+        exp_name  = self.name
+        date = self.date
+        plots.plot_sicm(self.dsdata, sel, "Hopping Scan", exp_name, date)
+
+    def plot_hops(self, sel = None, do_save = True):
+        """Plot approach curves
+
+        Parameters
+        ---------
+        sel: tuple
+            Range on time-axis to plot
+        do_save: bool
+            Should the figure be saved?
+        """
+        if do_save:
+            fpath = self.get_fpath()
+        else:
+            fpath = None
+
+        # TODO: This should be done elswhere!
+        self._data["time(s)"] = np.cumsum(self._data["dt(s)"])
+        hop = Hops(self._data, self.idxs, self.name, self.date)
+        hop.plot(sel, fname = fpath, do_annotate = not self.is_it)
 
     def plot_approach(self, location = None):
         """Plots approach of a scan
 
         Normally, we don't care about an approach of a scan, but occasionaly
         user may want to interrogate it.
+
+        Parameters
+        -----------
+        location: None or tuple
+            If tuple, then (X, Y) coordinates of approach to select, else selects
+            the very first approach.
         """
         # extract approach from raw data
         data = self._data
@@ -341,147 +309,37 @@ class Scan(Experiment):
         plots.plot_generic(x_ax, y_ax, x_lab, y_lab, fname = fpath)
 
 
-    def annotate_peaks(self, sel = None, window_size = 250):
-        """todo"""
-        hop = Hops(self.data, self.idxs, self.name, self.date)
-        _, _ = hop.annotate_peaks(sel, window_size = window_size, save_dir = self.datadir,
-                                    do_plot = True)
-
-    def plot_projection(self, x, y, z, z_lab = "Z", ax = None, title = None,
-                    fname = None, colors = None, center = False):
-        """Plot a 3D pojection
-        """
-        if ax is None:
-            fig = plt.figure()
-            ax = fig.add_subplot(1, 1, 1, projection = "3d")
-            fig.tight_layout()
-        else:
-            fig = ax.get_figure()
-
-        if center:
-            z = z - np.nanmin(z)
-            x = x - np.nanmean(x)
-            y = y - np.nanmean(y)
-
-        trsf = ax.plot_trisurf(x, y, z, cmap='binary')
-        ax.set_xlabel('X(um)')
-        ax.set_ylabel('Y(um)')
-        ax.set_zlabel(z_lab)
-
-        if colors is not None:
-            trsf.set_array(colors)
-            trsf.autoscale()
-
-        # Set descriptive title
-        if title is not None:
-            ax.set_title(title)
-        # Save figure
-        if fname is not None:
-            utils.save_fig(fname, ext = ".png")
-
-        # Explicitly close all figures if already too many;
-        if len(plt.get_fignums()) > 3:
-            plt.close('all')
-
-    def plot_slice( self, x, y, z, z_lab = "Z", ax = None, title = None,
-                    fname = None, cbar_lims = (None, None), center = False):
-        """Plot a single slice"""
-        if ax is None:
-            fig, ax = plt.subplots(1, 1)
-            fig.tight_layout()
-        else:
-            fig = ax.get_figure()
-
-        if center:
-            z = z - np.nanmin(z)
-            x = x - np.nanmean(x)
-            y = y - np.nanmean(y)
-
-        if np.any(~np.isfinite(z)): # handle (expected) nans in data gracefully
-            ## A) would work if just few nans
-            ## https://github.com/matplotlib/matplotlib/issues/10167
-            # triang = mpl.tri.Triangulation(x, y)  # Delaunay triangulation of all points
-            # point_mask = ~np.isfinite(z)   # Points to mask out.
-            # tri_mask = np.any(point_mask[triang.triangles], axis = 1)  # Triangles to mask out.
-            # triang.set_mask(tri_mask)
-            # levels = np.linspace(np.nanmin(z), np.nanmax(z), 10)
-            # conts = ax.tricontourf(triang, z, cmap = "gray", levels = levels, norm = norm)
-
-            ## B) try countourf instead
-            ## Reshape to square matrix
-            # a = np.int(np.sqrt(len(z)))
-            # x_sq = np.reshape(x[:a**2], [a]*2)
-            # y_sq = np.reshape(y[:a**2], [a]*2)
-            # z_sq = np.reshape(z[:a**2], [a]*2)
-            ## Flip every second column ? Is this needed???
-            # x_sq[1::2, :] = x_sq[1::2, ::-1]
-            # y_sq[1::2, :] = y_sq[1::2, ::-1]
-            # z_sq[1::2, :] = z_sq[1::2, ::-1]
-            # conts = ax.contourf(x_sq, y_sq, z_sq, cmap = "gray", levels = 10, norm = norm)
-
-            raise NotImplementedError("Sparse measurements not implemented!")
-        else:
-            if any(cl is None for cl in cbar_lims):
-                # Option 2: Variable colorbar, but better contrast for each slice
-                conts = ax.tricontourf(x, y, z, cmap = "gray", levels = 10) # or greys
-                cbar = fig.colorbar(conts, format = "%.4E", drawedges = True)
-                # cbar.set_clim(*cbar_lims) # this appears not helpful
-            else:
-                # Option 1: Same colorbar for all slices
-                norm = mpl.colors.Normalize(vmin = cbar_lims[0], vmax = cbar_lims[1])
-                conts = ax.tricontourf(x, y, z, cmap = "gray", levels = 10, norm = norm) # or greys
-                cbar = plots.make_colorbar(fig, conts.cmap, conts.levels, *cbar_lims)
-
-        cbar.ax.set_ylabel(z_lab)
-
-        ax.set_xlabel('X(um)')
-        ax.set_ylabel('Y(um)')
-
-        # Set descriptive title
-        if title is not None:
-            ax.set_title(title)
-        # Save figure
-        if fname is not None:
-            utils.save_fig(fname, ext = ".png")
-
-        # Explicitly close all figures if already too many;
-        if len(plt.get_fignums()) > 3:
-            plt.close('all')
-
-    def plot_slices(self, tilt, n_slices = 10, z_range = "common"):
+    def plot_slices(self, X, Y, tilt, n_slices = 10, z_range = "common", scaleby = "hop"):
         """Plot measurmement values at different z-locations"""
         # Look at raw data
         data = self._trim_data(self._data, self.x_trim, self.y_trim)
         uniqs, cnts = np.unique(data["LineNumber"], return_counts=True)
         # Obtain all approaches
-        approach_linenos = np.arange(5, max(uniqs), 3)
+        approach_linenos = np.arange(5, max(uniqs) -1, 3)
         ## include effect of trimming
         approach_linenos = approach_linenos[np.in1d(approach_linenos, uniqs)]
         approach_data, approach_idxs = downsample_to_linenumber(data, approach_linenos, "all")
-        # obtain all retracts; retract_linenos = approach_linenos + 1
-        retract_linenos = np.arange(6, max(uniqs) + 1, 3)
+        # obtain all retracts
+        retract_linenos = approach_linenos + 1
         ## include effect of trimming
         retract_linenos = retract_linenos[np.in1d(retract_linenos, uniqs)]
         retract_data, retract_idxs = downsample_to_linenumber(data, retract_linenos, "all")
 
         # extract bulk current from intial approach from raw data
-        data_all = self._data
-        sel, _ = self._select_approach(data_all, None)
-        approach_current = data_all["Current1(A)"][sel]
-        approach_t = np.cumsum(data_all["dt(s)"][sel])
-        idxs = np.nonzero(approach_t < 250e-3)[0]
-        # bulk_current = np.quantile(approach_current[idxs], 0.95)
-        bulk_current = trim_mean(approach_current[idxs], 0.1)
+        if scaleby.lower().startswith("b"):
+            data_all = self._data
+            sel, _ = self._select_approach(data_all, None)
+            approach_current = data_all["Current1(A)"][sel]
+            approach_t = np.cumsum(data_all["dt(s)"][sel])
+            idxs = np.nonzero(approach_t < 250e-3)[0]
+            # bulk_current = np.quantile(approach_current[idxs], 0.95)
+            bulk_current = trim_mean(approach_current[idxs], 0.1)
 
         # Vectorization possible?
         z_axs = []
         z_surfs = []
 
-        tilt = tilt.flatten() # CHECK that correctly ordered !
         for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
-            # if trimmed manually, some points will be out-of-grid and are discarded
-            if i >= len(tilt):
-                continue
             # Extract data for approach and following retraction at given
             # location X, Y that is descibred by i,i+1 LineNumber pair
             # discarding (very variable) point at the very bottom from both sides
@@ -514,14 +372,18 @@ class Scan(Experiment):
         if z_range.lower().startswith("c"):
             interval_end = np.min(z_diffs)
         elif z_range.lower().startswith("a"):
-            raise NotImplementedError("Sparse measurements are not implemented!")
             # interval_end = np.max(z_diffs)
+            raise NotImplementedError("Sparse measurements are not implemented!")
+        else:
+            raise NotImplementedError("Only `z_range='common'` is implemented!")
+
 
         slices_z_locs, z_delta = np.linspace(0, interval_end, n_slices, retstep = True)
         # Adjust the interval by delta-multiplier*z_delta up
         delta_multiplier  = 0.45 # relative half-width of interval
         slices_z_locs, z_delta = np.linspace(delta_multiplier * z_delta,
-                                slices_z_locs[-1] - delta_multiplier * z_delta, n_slices, retstep = True)
+                                slices_z_locs[-1] - delta_multiplier * z_delta, n_slices,
+                                retstep = True)
 
         keypairs = {"Current1(A)": r"$I_{norm} [-]$",
                     "LockinPhase": r"$\theta_{norm} [-]$"}
@@ -532,10 +394,6 @@ class Scan(Experiment):
         good_keys = []
 
         for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
-            # if trimmed manually, some points will be out-of-grid and are discarded
-            if i >= len(tilt):
-                continue
-
             for k, key in enumerate(keypairs.keys()):
                 # one of the two may not be always present.
                 if key not in data.keys():
@@ -547,14 +405,19 @@ class Scan(Experiment):
                 v_down = data[key][data["LineNumber"] == aln]
                 v_up = data[key][data["LineNumber"] == rln]
                 v_all = np.concatenate((v_down[:-1], v_up[1:]))
-                # Normalize by value at the top of approach
-                # consider initial 250ms as period for sampling max value
-                # take almost maximum, but avoid picking an outlier
-                t = np.cumsum(data["dt(s)"][data["LineNumber"] == aln][:-1])
-                idxs = np.nonzero(t < 250e-3)[0]
-                scaler = np.quantile(v_all[idxs], 0.95)
-                scaler = bulk_current
+
+                if scaleby.lower().startswith("b"):
+                    scaler = bulk_current
+                else:
+                    # Normalize by value at the top of approach
+                    # consider initial 250ms as period for sampling max value
+                    # take almost maximum, but avoid picking an outlier
+                    t = np.cumsum(data["dt(s)"][data["LineNumber"] == aln][:-1])
+                    idxs = np.nonzero(t < 250e-3)[0]
+                    scaler = np.quantile(v_all[idxs], 0.95)
+
                 v_all = v_all / scaler
+                # if any(v_all < 0.1): import pdb; pdb.set_trace()
 
                 ## Preserve surface values, just for interest
                 v_surf = np.asarray([v_down[-1], v_up[1]]) / scaler
@@ -583,11 +446,6 @@ class Scan(Experiment):
                     else:
                         measurements[i, j, k] = np.nan
 
-        # Pull out X, Y coordinates data
-        n_points = len(tilt)
-        X = np.squeeze(self.dsdata["X(um)"])[:n_points]
-        Y = np.squeeze(self.dsdata["Y(um)"])[:n_points]
-
         # Iterate over measured parameters
         for i, (key, label) in enumerate(keypairs.items()):
             val = np.squeeze(measurements[:,:, i])
@@ -608,20 +466,16 @@ class Scan(Experiment):
                 z_annot = str(np.around(slices_z_locs[slice_id], 4))
                 title = "slice {:d} @ z = {} um".format(slice_id, z_annot)
                 fname = utils.make_fname(fpath, "_" + str(np.int(slice_id)))
-                self.plot_slice(X, Y, slice, label,
+                surface.plot_slice(X, Y, slice, label,
                                 title = title, fname = fname,
-                                cbar_lims = cbar_lims)
+                                cbar_lims = cbar_lims, center = False)
 
             # Plot also Surface measuremnets
             slice = np.squeeze(v_surfs[:, i])
             title = "slice {:d} @ {}".format(-1, "surface")
             fname = utils.make_fname(fpath, "_" + "surface")
-            self.plot_slice(X, Y, slice, label,
-                            title = title, fname = fname)
-            # not implemented
-            # fname = utils.make_fname(fpath, "_" + "surface_projection")
-            # self.plot_projection(X, Y, np.asarray(z_surfs), "Z(um)",
-            #                 title = title, fname = fname, colors = slice)
+            surface.plot_slice(X, Y, slice, label,
+                            title = title, fname = fname, center = False)
 
     def plot_surface(self, plot_current = False, plot_slices = False):
         """Plot surface as contours and 3D"""
@@ -643,8 +497,7 @@ class Scan(Experiment):
             # Note that downsampling is stronger for most datasets! (see the function body)
             # X, Y, Z = self._downsample_surface_data(X, Y, Z, to_keep)
             ## AGGREGATE: preferred!
-            ## TODO: clean up on MERGE
-            X, Y, Z = self._aggregate_surface_data2(X, Y, Z)
+            X, Y, Z = self._aggregate_surface_data(X, Y, Z)
 
         elif plot_current and not plot_slices:
             # if you want to plot slices, allow leveling Z
@@ -653,6 +506,11 @@ class Scan(Experiment):
         else:
             Z = np.squeeze(result["Z(um)"])
             z_lab = "Z(um)"
+
+        # Remove last point if the data was not trimmed.
+        was_trimmed = any([False if x is None else True for x in (self.y_trim, self.y_trim)])
+        if not self.is_constant_distance and not was_trimmed:
+            X, Y, Z = X[:-1], Y[:-1], Z[:-1]
         # https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
         try:
             if get_ipython().__class__.__name__ == "ZMQInteractiveShell":
@@ -662,40 +520,23 @@ class Scan(Experiment):
         except NameError as e:
             is_interactive = True # command line
         # Level Z coordinates and convert to matrix with proper ordering
-        X_sq, Y_sq, Z_sq, Z_tilt = analysis.level_plane(X, Y, Z, True, is_interactive,
-                                                        z_lab = z_lab)
-        npoints = len(Z_sq.flatten())
+        Z_corr, Z_tilt = analysis.level_plane(  X, Y, Z, True, is_interactive,
+                                                z_lab = z_lab)
 
         if plot_slices:
-            self.plot_slices(Z_tilt)
+            self.plot_slices(X, Y, Z_tilt)
         else:
             plt.style.use("seaborn")
             fig = plt.figure(figsize = (12, 10))
             # fig.tight_layout()
 
             # Filled countour with triangulation
-
             ax = fig.add_subplot(2, 2, 1)
-            self.plot_slice(X[:npoints], Y[:npoints], Z_sq.flatten(), z_lab, ax,
-                            center = False)
-            # C = ax.tricontourf(X[:npoints], Y[:npoints], Z_sq.flatten(), cmap='viridis')
-            # CB = fig.colorbar(C)
-            # ax.set_xlabel('X(um)')
-            # ax.set_ylabel('Y(um)')
-            # ax.set_title(z_lab)
+            surface.plot_slice(X, Y, Z_corr, z_lab, ax, center = False)
 
             # Surface in 3D projection
             ax = fig.add_subplot(2, 2, 2, projection='3d')
-            self.plot_projection(X[:npoints], Y[:npoints], Z_sq.flatten(), z_lab, ax,
-                                center = False)
-
-            # # Filled contours without triangulation
-            # ax = fig.add_subplot(2, 2, 3)
-            # C = ax.contourf(X_sq, Y_sq, Z_sq, cmap='viridis')
-            # CB = fig.colorbar(C)
-            # ax.set_xlabel('X(um)')
-            # ax.set_ylabel('Y(um)')
-            # ax.set_title('Z(um)')
+            surface.plot_projection(X, Y, Z_corr, z_lab, ax, center = False)
 
             # Save figure
             fpath = self.get_fpath()

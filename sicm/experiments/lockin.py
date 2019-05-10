@@ -4,7 +4,8 @@ import os
 from copy import deepcopy
 import matplotlib.pyplot as plt
 
-from sicm import analysis, plots, io
+from sicm import analysis, io
+from sicm.plots import plots
 
 class LockIn(object):
     """LockIn class"""

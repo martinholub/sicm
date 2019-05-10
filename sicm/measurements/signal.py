@@ -8,7 +8,7 @@ from scipy.signal import detrend, welch, periodogram
 from scipy import stats
 
 from sicm.utils import utils
-from sicm import plots
+from sicm.plots import plots
 from sicm.filters import LowPassButter
 
 class Signal(object):

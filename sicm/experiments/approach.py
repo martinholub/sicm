@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from copy import deepcopy
 from collections import OrderedDict
 
-from sicm import plots
+from sicm.plots import plots
 from sicm.utils import utils
 from .experiment import Experiment, ExperimentList
 from ..measurements.signal import Signal

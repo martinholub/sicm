@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from sicm.io import quoted_data_reader
-from sicm import plots
+from sicm.plots import plots
 from sicm.utils import utils
 
 class ZetaSizerReader(object):
