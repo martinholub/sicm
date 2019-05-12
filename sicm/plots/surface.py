@@ -33,10 +33,9 @@ def make_colorbar(fig, cmap, levels, cmin, cmax):
     norm = mpl.colors.Normalize(vmin = cmin, vmax = cmax)
     sm = plt.cm.ScalarMappable(norm = norm, cmap = cmap)
     sm.set_array([])
-    ticks = np.linspace(levels.min(), levels.max(), 6)
     # setting boundaries clips off colorbar extends that are not in current lelves
-    cbar = fig.colorbar(sm, ticks = ticks, # boundaries = levels,
-                        format = "%.3f", drawedges = True)
+    cbar = fig.colorbar(sm, ticks = levels,
+                        format = "%.3f", drawedges = False)
     return cbar
 
 def _plot_surface_1(ax, x, y, z, cmap):
@@ -73,7 +72,7 @@ def _plot_surface_3(ax, x, y, z, cmap):
     trsf = ax.plot_trisurf(x, y, z, cmap = cmap)
     return trsf
 
-def plot_surface(ax, x, y, z, cmap):
+def _plot_surface(ax, x, y, z, cmap):
     surf = _plot_surface_3(ax, x, y, z, cmap)
     return surf
 
@@ -136,11 +135,12 @@ def plot_projection(x, y, z, z_lab = "Z", ax = None, title = None,
         fig = ax.get_figure()
 
     if center:
-        z = z - np.nanmin(z)
+        if z_lab == "Z(um)":  # avoid centering current!
+            z = z - np.nanmin(z)
         x = x - np.nanmean(x)
         y = y - np.nanmean(y)
 
-    trsf = plot_surface(ax, x, y, z, cmap = "binary")
+    trsf = _plot_surface(ax, x, y, z, cmap = "binary")
     ax.set_xlabel('X(um)')
     ax.set_ylabel('Y(um)')
     ax.set_zlabel(z_lab)
@@ -161,8 +161,11 @@ def plot_projection(x, y, z, z_lab = "Z", ax = None, title = None,
         plt.close('all')
 
 def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
-                fname = None, cbar_lims = (None, None), center = True):
+                fname = None, cbar_lims = (None, None), center = True,
+                n_levels = 10):
     """Plot a single slice"""
+
+
     if ax is None:
         fig, ax = plt.subplots(1, 1)
         fig.tight_layout()
@@ -170,23 +173,26 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
         fig = ax.get_figure()
 
     if center:
-        z = z - np.nanmin(z)
+        if z_lab == "Z(um)":  # avoid centering current!
+            z = z - np.nanmin(z)
         x = x - np.nanmean(x)
         y = y - np.nanmean(y)
 
     if np.any(~np.isfinite(z)): # handle (expected) nans in data gracefully
         raise NotImplementedError("Sparse measurements not implemented!")
     else:
-        if any(cl is None for cl in cbar_lims):
-            # Option 2: Variable colorbar, but better contrast for each slice
-            conts = plot_contour(ax, x, y, z)
-            cbar = fig.colorbar(conts, format = "%.4E", drawedges = True)
-            # cbar.set_clim(*cbar_lims) # this appears not helpful
-        else:
-            # Option 1: Same colorbar for all slices
-            norm = mpl.colors.Normalize(vmin = cbar_lims[0], vmax = cbar_lims[1])
-            conts = plot_contour(ax, x, y, z, norm = norm)
-            cbar = make_colorbar(fig, conts.cmap, conts.levels, *cbar_lims)
+        with plt.style.context("seaborn-ticks"):
+            if any(cl is None for cl in cbar_lims):
+                # Option 2: Variable colorbar, but better contrast for each slice
+                conts = plot_contour(ax, x, y, z)
+                cbar = fig.colorbar(conts, ticks = conts.levels, format = "%.3f", drawedges = False)
+                # cbar.set_clim(*cbar_lims) # this appears not helpful
+            else:
+                # Option 1: Same colorbar for all slices
+                levels = np.linspace(z.min(), z.max(), n_levels)
+                norm = mpl.colors.Normalize(vmin = cbar_lims[0], vmax = cbar_lims[1])
+                conts = plot_contour(ax, x, y, z, norm = norm, levels = levels)
+                cbar = make_colorbar(fig, conts.cmap, conts.levels, *cbar_lims)
 
     cbar.ax.set_ylabel(z_lab)
 
@@ -203,3 +209,36 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
     # Explicitly close all figures if already too many;
     if len(plt.get_fignums()) > 3:
         plt.close('all')
+
+def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = False):
+    """Plot view of surface
+
+    Parameters
+    -------------
+    x,z,y: array-like
+        x,y coordinates and corresponding z-values
+    z_lab: str
+        z-axis label
+    fpath: str
+        A full-path to an image that will be created.
+    center: bool
+        Centers x,y around 0 and shifts origin of z to 0.
+    """
+    plt.style.use("seaborn")
+    fig = plt.figure(figsize = (12, 10))
+    # fig.tight_layout()
+
+    # Filled countour with triangulation
+    ax = fig.add_subplot(2, 2, 1)
+    plot_slice(x, y, z, z_lab, ax, center = center)
+
+    # Surface in 3D projection
+    ax = fig.add_subplot(2, 2, 2, projection='3d')
+    plot_projection(x, y, z, z_lab, ax, center = center)
+
+    # Save figure
+    if fpath is not None:
+        fname = utils.make_fname(fpath, "_surface")
+        utils.save_fig(fname, ext = ".png")
+    # Show
+    plt.show()

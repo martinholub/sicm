@@ -95,7 +95,6 @@ def downsample_to_linenumber(result = {}, lineno = -1, which = "last"):
 
     return(result_out, ret_idx)
 
-
 def load_data_lockin(folder = ".", fname = "", chunk = 0):
     """Load data exported by ZHInst LabOne
 

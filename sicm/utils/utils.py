@@ -15,7 +15,7 @@ def make_fname(fname, suffix = "", ext = ".pdf", subdirname = ""):
     # Create directory if needed
     if not os.path.isdir(subdir_path):
         os.makedirs(subdir_path)
-        
+
     fname = os.path.normpath(os.path.join(subdir_path, basename + ext))
     return fname
 
@@ -41,3 +41,14 @@ def annotate_dframe(annot):
     """Convert peak annotation to dataframe"""
     dframe = pd.DataFrame.from_dict(annot, orient = "columns")
     return dframe
+
+def check_if_interactive():
+    # https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
+    try:
+        if get_ipython().__class__.__name__ == "ZMQInteractiveShell":
+            is_interactive = False # jupyter
+        else:
+            is_interactive = True # ipython
+    except NameError as e:
+        is_interactive = True # command line
+    return is_interactive

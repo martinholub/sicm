@@ -41,6 +41,21 @@ class Scan(Experiment):
         self._report_xy_extents()
 
     def _trim_data(self, data, x_trim, y_trim):
+        """Trim Data to x, y range
+
+        Parameters
+        ---------
+        x_trim: tuple
+            (low, high) limits for x coordinate to preseve.
+        y_trim: tuple
+            (low, high) limits for y coordinate to preseve.
+
+        Returns
+        ----------
+        trim_data:
+            Data, trimmed if any of x_trim, y_trim is not None.
+
+        """
         if not y_trim: y_trim = None
         if not x_trim: x_trim = None
 
@@ -68,6 +83,11 @@ class Scan(Experiment):
             return data
 
     def _correct_dsdata(self, do_correct):
+        """Applies correction for jump of current
+
+        Use only for visualization purposes!!!
+        """
+
         if do_correct:
             result = analysis.correct_for_current(self.dsdata)
             return result
@@ -103,7 +123,6 @@ class Scan(Experiment):
         x_step = np.sort(np.abs(x_diffs))[-2]
 
         return x_step, y_step
-
 
     def _downsample_surface_data(self, X, Y, Z, by = 10):
         """Downsamples data available for plotting by factor `by`
@@ -225,6 +244,13 @@ class Scan(Experiment):
             print(msg)
         return sel, loc_str
 
+    def _remove_last_datapoint(self, X, Y, Z):
+        # Remove last point if the data was not trimmed.
+        was_trimmed = any([False if x is None else True for x in (self.y_trim, self.y_trim)])
+        if not self.is_constant_distance and not was_trimmed:
+            X, Y, Z = X[:-1], Y[:-1], Z[:-1]
+        return X, Y, Z
+
     def annotate_peaks(self, sel = None, window_size = 250):
         """Mark locations of low-peaks in data
 
@@ -308,14 +334,30 @@ class Scan(Experiment):
         fpath = utils.make_fname(fpath, "_approach{}".format(loc_str), ext = ".png")
         plots.plot_generic(x_ax, y_ax, x_lab, y_lab, fname = fpath)
 
+    def plot_slices(self, X, Y, tilt, n_slices = 10, thickness = .9,
+                    zrange = (None, None), clip = (None, None),
+                    z_coords = "common", scaleby = "hop"):
+        """Plot measurmement values at different z-locations as slices
 
-    def plot_slices(self, X, Y, tilt, n_slices = 10, z_range = "common", scaleby = "hop"):
-        """Plot measurmement values at different z-locations"""
+        Parameters
+        ---------------
+        X: array-like
+        Y: array-like
+        tilt: array_like
+        n_slices: int
+            Number of slices to render
+        z_coords: str
+            Either "common" or "all". Choosing "common" selects maximum z such that
+            it is present in all approaches/retracts.
+        scaleby: str
+            Either "hop" or "bulk". Choosing "hop" scales each rendered value by
+            the value at the top of corresponding approach.
+        """
         # Look at raw data
         data = self._trim_data(self._data, self.x_trim, self.y_trim)
         uniqs, cnts = np.unique(data["LineNumber"], return_counts=True)
         # Obtain all approaches
-        approach_linenos = np.arange(5, max(uniqs) -1, 3)
+        approach_linenos = np.arange(2, max(uniqs) -1, 3)
         ## include effect of trimming
         approach_linenos = approach_linenos[np.in1d(approach_linenos, uniqs)]
         approach_data, approach_idxs = downsample_to_linenumber(data, approach_linenos, "all")
@@ -335,6 +377,30 @@ class Scan(Experiment):
             # bulk_current = np.quantile(approach_current[idxs], 0.95)
             bulk_current = trim_mean(approach_current[idxs], 0.1)
 
+        # Gather information on approach/retract speeds.
+        speeds = np.empty((len(approach_linenos), 2))
+        lengths = np.empty((len(approach_linenos), 2))
+        for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
+            z_down = approach_data["Z(um)"][approach_data["LineNumber"] == aln]
+            z_up = retract_data["Z(um)"][retract_data["LineNumber"] == rln]
+            dt_down = approach_data["dt(s)"][approach_data["LineNumber"] == aln][1:]
+            dt_up = retract_data["dt(s)"][retract_data["LineNumber"] == rln][1:]
+            ## Intial about 150 points of approach are collected while z is still constant!
+            ## This happends while X piezo readjusts, here we manually adjust for this
+            z_diff_down = np.abs(np.diff(z_down))
+            z_step_down = np.sort(z_diff_down)[-5]
+            after_init_down = np.nonzero(z_diff_down > z_step_down / 3)[0]
+            down_speed = np.mean(z_diff_down[after_init_down] / dt_down[after_init_down])
+            ## Speed of movement up
+            up_speed = np.mean(np.abs(np.diff(z_up) / dt_up))
+            ## Assing.
+            speeds[i, :] = [down_speed, up_speed]
+            lengths[i, :] = [len(z_down), len(z_up)]
+
+        # Compute interval length adjustment for the first approach
+        speed_ratio = np.mean(speeds[1:, 0]) / speeds[0, 0]
+        first_length_adj = np.int(np.mean(lengths[1:, 0]) * speed_ratio)
+
         # Vectorization possible?
         z_axs = []
         z_surfs = []
@@ -345,6 +411,14 @@ class Scan(Experiment):
             # discarding (very variable) point at the very bottom from both sides
             z_down = approach_data["Z(um)"][approach_data["LineNumber"] == aln]
             z_up = retract_data["Z(um)"][retract_data["LineNumber"] == rln]
+
+            # Look only at the part of data that corresponds to roughly same distance
+            # from the surface as other datapoints would
+            if i == 0:
+                first_app_keep = np.nonzero(z_down <= np.max(z_up))[0]
+                z_down = z_down[first_app_keep]
+                # z_down = z_down[-first_length_adj:]
+
             # Handle the up/down data as of equal nature and combine them to an array
             z = np.concatenate((z_down[:-1], z_up[1:]))
             # Remove tilt at given X,Y and set origin to the lowest location
@@ -353,7 +427,6 @@ class Scan(Experiment):
             z = z - z_min
             # Add to list of arrays
             z_axs.append(z)
-
             ## keep surface values, just for interest
             z_surf = np.asarray([z_down[-1], z_up[1]])
             z_surf = z_surf - tilt[i]
@@ -361,29 +434,35 @@ class Scan(Experiment):
             # Add to list
             z_surfs.append(np.mean(z_surf))
 
+        ## Handle thge very first approach/retract separately
+
         # Be conservvative and slice only where we have data for all hops.
         # This will trhow away lot of information if even a single approach
         # is much shorter than other approaches.
         # It is slightly mitigated by adding retract data, but this presumes
         # that the data from approach and retract are of comparable nature.
-        # The approach is less reliable for far-away z-coordinates (>75% of z_range)
+        # The approach is less reliable for far-away z-coordinates (>75% of z_coords)
         # because occasionally only retract points will be considered for given X,Y.
+
         z_diffs = [zz.max() - zz.min() for zz in z_axs]
-        if z_range.lower().startswith("c"):
+        if z_coords.lower().startswith("c"):
             interval_end = np.min(z_diffs)
-        elif z_range.lower().startswith("a"):
+        elif z_coords.lower().startswith("a"):
             # interval_end = np.max(z_diffs)
             raise NotImplementedError("Sparse measurements are not implemented!")
         else:
-            raise NotImplementedError("Only `z_range='common'` is implemented!")
+            raise NotImplementedError("Only `z_coords='common'` is implemented!")
 
-
-        slices_z_locs, z_delta = np.linspace(0, interval_end, n_slices, retstep = True)
+        if zrange is None:
+            zrange = (0, interval_end)
+        slices_z_locs, z_delta = np.linspace(zrange[0], zrange[1], n_slices, retstep = True)
         # Adjust the interval by delta-multiplier*z_delta up
-        delta_multiplier  = 0.45 # relative half-width of interval
+        delta_multiplier  = thickness / 2 # relative half-width of interval
         slices_z_locs, z_delta = np.linspace(delta_multiplier * z_delta,
                                 slices_z_locs[-1] - delta_multiplier * z_delta, n_slices,
                                 retstep = True)
+        # Keep the slice thickness for further use as string in annotation
+        thickness_annot = str(np.around(z_delta * delta_multiplier * 2, 4))
 
         keypairs = {"Current1(A)": r"$I_{norm} [-]$",
                     "LockinPhase": r"$\theta_{norm} [-]$"}
@@ -400,10 +479,13 @@ class Scan(Experiment):
                     continue
                 else:
                     good_keys.append(key)
-                # Pull out measurmement, discarding point at the very
-                # bottom from both sides
+                # Pull out measurmement
                 v_down = data[key][data["LineNumber"] == aln]
                 v_up = data[key][data["LineNumber"] == rln]
+                if i == 0:
+                    v_down = v_down[first_app_keep]
+                    # v_down = v_down[-first_length_adj:]
+                # Concatenate discarding point at the very bottom from both sides
                 v_all = np.concatenate((v_down[:-1], v_up[1:]))
 
                 if scaleby.lower().startswith("b"):
@@ -412,16 +494,15 @@ class Scan(Experiment):
                     # Normalize by value at the top of approach
                     # consider initial 250ms as period for sampling max value
                     # take almost maximum, but avoid picking an outlier
-                    t = np.cumsum(data["dt(s)"][data["LineNumber"] == aln][:-1])
+                    t = np.cumsum(data["dt(s)"][data["LineNumber"] == aln])
                     idxs = np.nonzero(t < 250e-3)[0]
-                    scaler = np.quantile(v_all[idxs], 0.95)
+                    scaler = np.quantile(v_down[idxs], 0.95)
 
                 v_all = v_all / scaler
-                # if any(v_all < 0.1): import pdb; pdb.set_trace()
 
                 ## Preserve surface values, just for interest
-                v_surf = np.asarray([v_down[-1], v_up[1]]) / scaler
-                v_surfs[i, k] = np.mean(v_surf)
+                v_surf = np.asarray([v_down[-1], v_up[1]])
+                v_surfs[i, k] = np.mean(v_surf) / scaler
 
                 for j, szl in enumerate(slices_z_locs):
                     z = z_axs[i]
@@ -447,8 +528,10 @@ class Scan(Experiment):
                         measurements[i, j, k] = np.nan
 
         # Iterate over measured parameters
+
         for i, (key, label) in enumerate(keypairs.items()):
             val = np.squeeze(measurements[:,:, i])
+            val_stds = np.squeeze(stds[:,:, i])
             # Skip given measurmement if we dont have data
             if key not in good_keys: continue
             if np.isnan(val).all():
@@ -456,28 +539,58 @@ class Scan(Experiment):
 
             # Make colorbar extents common to all slices for given key
             cbar_lims = (np.nanmin(val), np.nanmax(val))
+            # if clip is not None:
+            #     cbar_lims = (   np.maximum(cbar_lims[0], clip[0]),
+            #                     np.minimum(cbar_lims[1], clip[1]))
+
+            # So it actually seems to be working, as I want it to, but it does not
+            # help to clip. Perhaps clip more tightly?
+            # CONTINUE HERE!
+            if clip is not None:
+                high_mask = val > clip[1]
+                val[high_mask] = clip[1]
+                low_mask =  val < clip[0]
+                val[low_mask] = clip[0]
+                cbar_lims = (None, None)
+
+            cbar_lims_stds  = (np.nanmin(val_stds), np.nanmax(val_stds))
             # Get path for saving
-            fpath = self.get_fpath()
-            fpath = utils.make_fname(fpath, subdirname = "{}/{}".format("slices", key))
+            fpath_ = self.get_fpath()
+            fpath = utils.make_fname(fpath_, subdirname = "{}/{}".format("slices", key))
+            fpath_stds = utils.make_fname(fpath_, subdirname = "{}/{}/{}".format("slices", key, "stds"))
 
             # Iterate Over Slices
             for slice_id in np.arange(0, val.shape[-1]):
                 slice = np.squeeze(val[:, slice_id])
+                slice_stds = np.squeeze(val_stds[:, slice_id])
                 z_annot = str(np.around(slices_z_locs[slice_id], 4))
-                title = "slice {:d} @ z = {} um".format(slice_id, z_annot)
-                fname = utils.make_fname(fpath, "_" + str(np.int(slice_id)))
+                title = "slice {:d} @ z = {} um, t = {} um"
+                title = title.format(slice_id + 1, z_annot, thickness_annot)
+
+                # Measurmements
+                fname = utils.make_fname(fpath, "_" + str(np.int(slice_id + 1)))
                 surface.plot_slice(X, Y, slice, label,
                                 title = title, fname = fname,
                                 cbar_lims = cbar_lims, center = False)
+                # STDS
+                fname = utils.make_fname(fpath_stds, "_" + str(np.int(slice_id + 1)))
+                surface.plot_slice(X, Y, slice_stds, "$\sigma_{norm}$",
+                                title = title, fname = fname,
+                                cbar_lims = cbar_lims_stds, center = False)
 
             # Plot also Surface measuremnets
             slice = np.squeeze(v_surfs[:, i])
-            title = "slice {:d} @ {}".format(-1, "surface")
-            fname = utils.make_fname(fpath, "_" + "surface")
+            title = "slice {:d} @ {}".format(0, "surface")
+            fname = utils.make_fname(fpath, "_" + "0")
             surface.plot_slice(X, Y, slice, label,
-                            title = title, fname = fname, center = False)
+                            title = title, fname = fname, center = False,
+                            cbar_lims = cbar_lims)
 
-    def plot_surface(self, plot_current = False, plot_slices = False):
+            plt.close('all')
+
+    def plot_surface(   self, plot_current = False, plot_slices = False, n_slices = 10,
+                        center = False, thickness = 0.9, zrange = (None, None),
+                        clip = (None, None)):
         """Plot surface as contours and 3D"""
         # Plot downsampled Data
         result = self.dsdata
@@ -507,40 +620,14 @@ class Scan(Experiment):
             Z = np.squeeze(result["Z(um)"])
             z_lab = "Z(um)"
 
-        # Remove last point if the data was not trimmed.
-        was_trimmed = any([False if x is None else True for x in (self.y_trim, self.y_trim)])
-        if not self.is_constant_distance and not was_trimmed:
-            X, Y, Z = X[:-1], Y[:-1], Z[:-1]
-        # https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
-        try:
-            if get_ipython().__class__.__name__ == "ZMQInteractiveShell":
-                is_interactive = False # jupyter
-            else:
-                is_interactive = True # ipython
-        except NameError as e:
-            is_interactive = True # command line
-        # Level Z coordinates and convert to matrix with proper ordering
+
+        X, Y, Z = self._remove_last_datapoint(X, Y, Z)
+        is_interactive = utils.check_if_interactive()
+        # Level Z coordinates
         Z_corr, Z_tilt = analysis.level_plane(  X, Y, Z, True, is_interactive,
                                                 z_lab = z_lab)
 
         if plot_slices:
-            self.plot_slices(X, Y, Z_tilt)
-        else:
-            plt.style.use("seaborn")
-            fig = plt.figure(figsize = (12, 10))
-            # fig.tight_layout()
+            self.plot_slices(X, Y, Z_tilt, n_slices, thickness, zrange, clip)
 
-            # Filled countour with triangulation
-            ax = fig.add_subplot(2, 2, 1)
-            surface.plot_slice(X, Y, Z_corr, z_lab, ax, center = False)
-
-            # Surface in 3D projection
-            ax = fig.add_subplot(2, 2, 2, projection='3d')
-            surface.plot_projection(X, Y, Z_corr, z_lab, ax, center = False)
-
-            # Save figure
-            fpath = self.get_fpath()
-            fname = utils.make_fname(fpath, "_surface")
-            utils.save_fig(fname, ext = ".png")
-            # Show
-            plt.show()
+        surface.plot_surface_contours( X, Y, Z_corr, z_lab, self.get_fpath(), center)

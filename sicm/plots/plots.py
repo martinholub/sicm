@@ -14,7 +14,6 @@ from matplotlib.ticker import FormatStrFormatter
 from sicm import analysis
 from sicm.utils import utils
 
-plt.style.use("seaborn")
 
 def plot_mock(ax):
     """Render a mock plot"""
@@ -25,8 +24,6 @@ def plot_mock(ax):
 
 def plot_sicm(result, sel, title = "SICM Plot", exp_name = None, date = "00/00/0000"):
     """Generic SICM plot"""
-
-    plt.style.use("seaborn")
 
     fig, axs = plt.subplots(nrows = 5, ncols = 2, figsize = (10, 20))
     axs = axs.flatten()
@@ -178,7 +175,7 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
     plt.show()
 
 def _set_rcparams():
-    plt.style.use("seaborn-ticks")
+    plt.style.use("seaborn")
     params = {  "font.family": "serif",
                 "font.weight": "normal",
                 "xtick.labelsize": 10,

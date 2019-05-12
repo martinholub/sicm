@@ -65,7 +65,7 @@ class Experiment(object):
                 # hopping_scan
                 # Start with 2 to Include also the very first approach, to get complete data!
                 # Would need to take only correspondig part of datat
-                linenos = np.arange(5, max(uniqs), 3)
+                linenos = np.arange(2, max(uniqs), 3)
                 result, idxs = io.downsample_to_linenumber(data, linenos, which)
 
             dsdata = {k:v[idxs] for k,v in result.items()}
@@ -75,7 +75,7 @@ class Experiment(object):
                 msg = "{} : {}".format(type(e).__name__, e.args)
                 print(msg + "\nAll points will be used.")
             idxs = np.arange(0, len(next(iter(data.values()))))
-            data["time(s)"] = np.cumsum(data["dt(s)"]) # TODO: Make more robust.
+            data["time(s)"] = np.cumsum(data["dt(s)"])
             dsdata = data
             result = data
 

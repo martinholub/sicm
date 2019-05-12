@@ -58,18 +58,19 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
     if interactive:
         # Select points interactively
         with mpl.rc_context(rc={'interactive': True}):
-            fig = plt.figure(figsize = (6, 4))
-            ax = fig.add_subplot(1, 1, 1, projection='3d')
-            ax.set_title("Click on 3 Points To Select Them")
-            ax.scatter(X, Y, Z, c = Z, marker = "^", picker = 5,
-                        alpha = 0.3, cmap = "viridis")
-            ax.set_xlabel("X [um]"); ax.set_ylabel("Y [um]"); ax.set_zlabel(z_lab)
-            picker = Picker()
-            cid = fig.canvas.mpl_connect("pick_event", picker.onpick)
-            plt.show()
-            input("[Press Enter once you have selected 3 points] \n")
-            fig.canvas.mpl_disconnect(cid)
-            # vals = plt.ginput(3, show_clicks = True) # just for 2D
+            with plt.style.context("seaborn"):
+                fig = plt.figure(figsize = (6, 4))
+                ax = fig.add_subplot(1, 1, 1, projection='3d')
+                ax.set_title("Click on 3 Points To Select Them")
+                ax.scatter(X, Y, Z, c = Z, marker = "^", picker = 5,
+                            alpha = 0.3, cmap = "viridis")
+                ax.set_xlabel("X [um]"); ax.set_ylabel("Y [um]"); ax.set_zlabel(z_lab)
+                picker = Picker()
+                cid = fig.canvas.mpl_connect("pick_event", picker.onpick)
+                plt.show()
+                input("[Press Enter once you have selected 3 points] \n")
+                fig.canvas.mpl_disconnect(cid)
+                # vals = plt.ginput(3, show_clicks = True) # just for 2D
 
         # If no points selected, don't correct for tilt.
         try:
