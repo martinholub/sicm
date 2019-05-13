@@ -6,6 +6,16 @@ def float_or_none(x):
         x = float(x)
     return x
 
+def hop_or_bulk_str(x):
+    if not isinstance(x, (str, )): return "hop"
+
+    if x.lower().startswith("b"):
+        return "bulk"
+    elif x.lower().startswith("h"):
+        return "hop"
+    else:
+        return "hop"
+
 class SubArgParser(ArgumentParser):
     """Subclass of ArgumentParser with default values"""
     def __init__(self, *args, **kwargs):
@@ -34,9 +44,16 @@ class SubArgParser(ArgumentParser):
         self.add_argument(  "--center", dest = "center",
                             action="store_true", help = "Center values around/at 0?")
 
+        self.add_argument(  "--scale",  dest = "scale", type = hop_or_bulk_str,
+                            action="store", default = "hop",
+                            help = "Scale by 'bulk' or 'hop'?")
+
         self.add_argument(  "-c", "--clip", dest = "clip", action="store",
                             nargs = 2, type = float_or_none,
                             help="Two numbers for low/high relative current to clip to.")
+        self.add_argument(  "-l", "--levels", dest = "n_levels", action="store",
+                            type = int, default = 10,
+                            help="How many levels to split relative current to?")
 
         self.add_argument("datadir", action = "store", default = "./",
                         help = "Path to data directory [default='./']",

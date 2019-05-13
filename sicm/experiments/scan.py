@@ -30,9 +30,8 @@ class Scan(Experiment):
     scan_type: str
         Type of scan. ("scan", "it")
     """
-    def __init__(self, datadir, exp_name, y_trim = None, x_trim = None, do_correct = False,
-                scan_type = "scan"):
-
+    def __init__(   self, datadir, exp_name, y_trim = None, x_trim = None,
+                    do_correct = False, scan_type = "scan"):
         super(Scan, self).__init__(datadir, exp_name, scan_type)
         self.dsdata = self._trim_data(self.dsdata, x_trim, y_trim)
         self.dsdata = self._correct_dsdata(do_correct)
@@ -118,7 +117,6 @@ class Scan(Experiment):
 
         # https://stackoverflow.com/q/2652368
         # y_idx = np.argwhere(np.sign(x_diffs[:-1]) != np.sign(x_diffs[1:])).flatten() + 1
-
         y_step = np.max(np.abs(y_diffs))
         x_step = np.sort(np.abs(x_diffs))[-2]
 
@@ -336,7 +334,7 @@ class Scan(Experiment):
 
     def plot_slices(self, X, Y, tilt, n_slices = 10, thickness = .9,
                     zrange = (None, None), clip = (None, None),
-                    z_coords = "common", scaleby = "hop"):
+                    scaleby = "hop", n_levels = 10, z_coords = "common"):
         """Plot measurmement values at different z-locations as slices
 
         Parameters
@@ -434,8 +432,6 @@ class Scan(Experiment):
             # Add to list
             z_surfs.append(np.mean(z_surf))
 
-        ## Handle thge very first approach/retract separately
-
         # Be conservvative and slice only where we have data for all hops.
         # This will trhow away lot of information if even a single approach
         # is much shorter than other approaches.
@@ -511,12 +507,12 @@ class Scan(Experiment):
                     cond1 = z >= (szl - z_delta * delta_multiplier)
                     cond2 = z < (szl + z_delta * delta_multiplier)
                     sel = np.nonzero(np.logical_and(cond1, cond2))[0]
-                    if len(sel) > 1:
+                    if len(sel) > 0:
                         v_sub = v_all[sel]
 
                         # Tested mean and mean, result was alike
                         # Mean may be better with noise, edian with outliers
-                        measurements[i, j, k] = np.mean(v_sub)
+                        measurements[i, j, k] = np.max(v_sub)
                         stds[i, j, k] = np.std(v_sub)
                         # Warn user if data potentialy unreliable
                         if np.std(v_sub) == 0:
@@ -538,22 +534,20 @@ class Scan(Experiment):
                 raise Exception("All measurements for {} are NaN!".format(key))
 
             # Make colorbar extents common to all slices for given key
-            cbar_lims = (np.nanmin(val), np.nanmax(val))
-            # if clip is not None:
-            #     cbar_lims = (   np.maximum(cbar_lims[0], clip[0]),
-            #                     np.minimum(cbar_lims[1], clip[1]))
-
-            # So it actually seems to be working, as I want it to, but it does not
-            # help to clip. Perhaps clip more tightly?
-            # CONTINUE HERE!
-            if clip is not None:
-                high_mask = val > clip[1]
-                val[high_mask] = clip[1]
-                low_mask =  val < clip[0]
-                val[low_mask] = clip[0]
-                cbar_lims = (None, None)
-
             cbar_lims_stds  = (np.nanmin(val_stds), np.nanmax(val_stds))
+            cbar_lims = (np.nanmin(val), np.nanmax(val))
+            # Apply clipping for visualization if desired
+            if clip is not None:
+                opt = 2
+                if opt == 1: # Clip data for plotting
+                    val[val > clip[1]] = clip[1]
+                    val[val < clip[0]] = clip[0]
+                    cbar_lims = (None, None)
+                elif opt == 2: # Let clipping happen in plotting function
+                    if not isinstance(clip, (tuple, )): clip = tuple(clip)
+                    cbar_lims = clip
+                else:
+                    raise NotImplementedError
             # Get path for saving
             fpath_ = self.get_fpath()
             fpath = utils.make_fname(fpath_, subdirname = "{}/{}".format("slices", key))
@@ -571,7 +565,8 @@ class Scan(Experiment):
                 fname = utils.make_fname(fpath, "_" + str(np.int(slice_id + 1)))
                 surface.plot_slice(X, Y, slice, label,
                                 title = title, fname = fname,
-                                cbar_lims = cbar_lims, center = False)
+                                cbar_lims = cbar_lims, center = False,
+                                n_levels = n_levels)
                 # STDS
                 fname = utils.make_fname(fpath_stds, "_" + str(np.int(slice_id + 1)))
                 surface.plot_slice(X, Y, slice_stds, "$\sigma_{norm}$",
@@ -584,13 +579,13 @@ class Scan(Experiment):
             fname = utils.make_fname(fpath, "_" + "0")
             surface.plot_slice(X, Y, slice, label,
                             title = title, fname = fname, center = False,
-                            cbar_lims = cbar_lims)
+                            cbar_lims = cbar_lims, n_levels = n_levels)
 
             plt.close('all')
 
     def plot_surface(   self, plot_current = False, plot_slices = False, n_slices = 10,
                         center = False, thickness = 0.9, zrange = (None, None),
-                        clip = (None, None)):
+                        clip = (None, None), scaleby = "hop", n_levels = 10,):
         """Plot surface as contours and 3D"""
         # Plot downsampled Data
         result = self.dsdata
@@ -601,13 +596,12 @@ class Scan(Experiment):
             # We care about measurements of current
             Z = np.squeeze(result["Current1(A)"])
             z_lab = "Current1(A)"
-            # Pick current values with consistent coordinate only
-            # This works as long as the movemement in Z is just due to noise
-            Z_aux = np.squeeze(result["Z(um)"])
+            ## Pick current values with consistent coordinate only
+            ## This works as long as the movemement in Z is just due to noise
+            # Z_aux = np.squeeze(result["Z(um)"])
             ## DOWNSAMPLE
             # uniqs, cnts = np.unique(Z_aux, return_counts = True)
             # to_keep = np.nonzero(Z_aux == uniqs[np.argmax(cnts)])[0]
-            # Note that downsampling is stronger for most datasets! (see the function body)
             # X, Y, Z = self._downsample_surface_data(X, Y, Z, to_keep)
             ## AGGREGATE: preferred!
             X, Y, Z = self._aggregate_surface_data(X, Y, Z)
@@ -620,7 +614,6 @@ class Scan(Experiment):
             Z = np.squeeze(result["Z(um)"])
             z_lab = "Z(um)"
 
-
         X, Y, Z = self._remove_last_datapoint(X, Y, Z)
         is_interactive = utils.check_if_interactive()
         # Level Z coordinates
@@ -628,6 +621,6 @@ class Scan(Experiment):
                                                 z_lab = z_lab)
 
         if plot_slices:
-            self.plot_slices(X, Y, Z_tilt, n_slices, thickness, zrange, clip)
-
+            self.plot_slices(   X, Y, Z_tilt, n_slices, thickness, zrange, clip,
+                                scaleby, n_levels)
         surface.plot_surface_contours( X, Y, Z_corr, z_lab, self.get_fpath(), center)

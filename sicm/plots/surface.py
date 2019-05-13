@@ -30,7 +30,7 @@ def make_colorbar(fig, cmap, levels, cmin, cmax):
     ---------
     [1] https://stackoverflow.com/questions/44498631/continuous-colorbar-with-contour-levels
     """
-    norm = mpl.colors.Normalize(vmin = cmin, vmax = cmax)
+    norm = mpl.colors.Normalize(vmin = cmin, vmax = cmax, clip = False)
     sm = plt.cm.ScalarMappable(norm = norm, cmap = cmap)
     sm.set_array([])
     # setting boundaries clips off colorbar extends that are not in current lelves
@@ -42,7 +42,6 @@ def _plot_surface_1(ax, x, y, z, cmap):
     """Plot 3d surface data without interpolation
 
     This could work if data was always square. This is not the case though.
-
     """
     # Reshape to square matrix
     a = np.int(np.sqrt(len(z)))
@@ -73,9 +72,23 @@ def _plot_surface_3(ax, x, y, z, cmap):
     return trsf
 
 def _plot_surface(ax, x, y, z, cmap):
+    """Plot 3d surface data with triangulation
+
+    Parameters
+    ----------------
+    ax: matplotlib.pyplot.axis
+    x: array-like
+    y: array-like
+    z: array-like
+    cmap: str
+        'afmhot' produces AFM colormap, otherwise go for e.g. 'binary'
+
+    Returns
+    ---------------
+    surf: Axes3D.plot_trisurf
+    """
     surf = _plot_surface_3(ax, x, y, z, cmap)
     return surf
-
 
 def _plot_contour_1(ax, x, y, z, cmap, norm):
     """ Plot data as a 2D contour plot.
@@ -109,23 +122,50 @@ def _plot_contour_2(ax, x, y, z, cmap, norm):
     conts = ax.contourf(x_sq, y_sq, z_sq, cmap =cmap, levels = 10, norm = norm)
     return conts
 
-def _plot_contour_3(ax, x, y, z, cmap = "gray", norm = None, levels = 10):
-    """ Plot surface plot with triangulation
+def _plot_contour_3(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10):
+    """Render 2D filled contour plot with triangulation
+
+    Parameters
+    --------
+    ax: matplolib.pyplot.axis
+    x: array-like
+    y: array-like
+    z: array-like
+    cmap: str
+        'afmhot' produces AFM colormap, otherwise go for e.g. 'binary'
+    levels: int or array-like
+        Levels of contour plot. If int, levels are determined by pyplot.
+        (It should give the same result though)
     """
     if norm is None:
         conts = ax.tricontourf(x, y, z, cmap = cmap, levels = levels) # or greys
     else:
-        conts = ax.tricontourf(x, y, z, cmap = cmap, levels = levels, norm = norm)
+        # Extend 'both' replaces colors out of range by low-high range limits
+        conts = ax.tricontourf( x, y, z, cmap = cmap, levels = levels,
+                                norm = norm, extend = "both")
     return conts
 
-def plot_contour(ax, x, y, z, cmap = "gray", norm = None, levels = 10):
+def plot_contour(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10):
+    """Render 2D filled contour plot with triangulation
+
+    Parameters
+    --------
+    ax: matplolib.pyplot.axis
+    x: array-like
+    y: array-like
+    z: array-like
+    cmap: str
+        'afmhot' produces AFM colormap, otherwise go for e.g. 'binary'
+    levels: int or array-like
+        Levels of contour plot. If int, levels are determined by pyplot.
+        (It should give the same result though)
+    """
     conts = _plot_contour_3(ax, x, y, z, cmap, norm, levels)
     return conts
 
-
-def plot_projection(x, y, z, z_lab = "Z", ax = None, title = None,
+def _plot_surface_contours(x, y, z, z_lab = "Z", ax = None, title = None,
                     fname = None, colors = None, center = True):
-    """Plot projection of 3D data on a surface
+    """Plot 3D surface contours
     """
     if ax is None:
         fig = plt.figure()
@@ -163,8 +203,23 @@ def plot_projection(x, y, z, z_lab = "Z", ax = None, title = None,
 def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
                 fname = None, cbar_lims = (None, None), center = True,
                 n_levels = 10):
-    """Plot a single slice"""
+    """Render 2D filled contour plot with triangulation
 
+    Parameters
+    --------
+    ax: matplolib.pyplot.axis
+    x: array-like
+    y: array-like
+    z: array-like
+    fname: str
+        Full path to an image to be created.
+    cbar_lims: tuple
+        2 values, limits of colorbar. If None, limits taken from data.
+    center: bool
+        Center x,y values around 0 and shift z to 0-origin?
+    n_levels:
+        Number of levels for contour plot
+    """
 
     if ax is None:
         fig, ax = plt.subplots(1, 1)
@@ -189,15 +244,20 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
                 # cbar.set_clim(*cbar_lims) # this appears not helpful
             else:
                 # Option 1: Same colorbar for all slices
-                levels = np.linspace(z.min(), z.max(), n_levels)
-                norm = mpl.colors.Normalize(vmin = cbar_lims[0], vmax = cbar_lims[1])
-                conts = plot_contour(ax, x, y, z, norm = norm, levels = levels)
-                cbar = make_colorbar(fig, conts.cmap, conts.levels, *cbar_lims)
+                levels_conts = np.linspace(cbar_lims[0], cbar_lims[1], n_levels)
+                if cbar_lims[0] > z.min() or cbar_lims[1] < z.max():
+                    levels_cbar = levels_conts
+                else:
+                    levels_cbar = np.linspace(z.min(), z.max(), n_levels)
+                norm = mpl.colors.Normalize(vmin = cbar_lims[0], vmax = cbar_lims[1], clip = True)
+                conts = plot_contour(ax, x, y, z, norm = norm, levels = levels_conts)
+                cbar = make_colorbar(fig, conts.cmap, levels_cbar, *cbar_lims)
 
     cbar.ax.set_ylabel(z_lab)
 
     ax.set_xlabel('X(um)')
     ax.set_ylabel('Y(um)')
+    # plt.axis("scaled") # use this if data not square
 
     # Set descriptive title
     if title is not None:
@@ -211,7 +271,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
         plt.close('all')
 
 def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = False):
-    """Plot view of surface
+    """Plot 3D surface contours
 
     Parameters
     -------------
@@ -234,7 +294,7 @@ def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = False):
 
     # Surface in 3D projection
     ax = fig.add_subplot(2, 2, 2, projection='3d')
-    plot_projection(x, y, z, z_lab, ax, center = center)
+    _plot_surface_contours(x, y, z, z_lab, ax, center = center)
 
     # Save figure
     if fpath is not None:

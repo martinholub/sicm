@@ -15,7 +15,8 @@ if args.what == "scan":
     scan = Scan(data_dir, exp_name, args.yrange, args.xrange, args.do_correct,
                 scan_type)
     scan.plot_surface(args.plot_current, args.plot_slices, args.n_slices, args.center,
-                        args.thickness, args.zrange, args.clip)
+                        args.thickness, args.zrange, args.clip, args.scale,
+                        args.n_levels)
 
 # elif args.what == "lockin":
 #     # Data loc
