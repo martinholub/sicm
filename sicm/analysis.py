@@ -122,8 +122,6 @@ def level_plane(X, Y, Z, is_debug = False, interactive = True, z_lab = "Z(um)"):
 
     return (Z_corr, Z_tilt)
 
-
-
 def correlate_signals(data, ykeys):
     """correlate_signals
 

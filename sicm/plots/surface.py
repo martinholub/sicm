@@ -175,7 +175,7 @@ def _plot_surface_contours(x, y, z, z_lab = "Z", ax = None, title = None,
         fig = ax.get_figure()
 
     if center:
-        if z_lab == "Z(um)":  # avoid centering current!
+        if z_lab == "Z(um)" or z_lab.lower().startswith("z"):  # avoid centering current!
             z = z - np.nanmin(z)
         x = x - np.nanmean(x)
         y = y - np.nanmean(y)
@@ -228,7 +228,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
         fig = ax.get_figure()
 
     if center:
-        if z_lab == "Z(um)":  # avoid centering current!
+        if z_lab == "Z(um)" or z_lab.lower().startswith("z"):  # avoid centering current!
             z = z - np.nanmin(z)
         x = x - np.nanmean(x)
         y = y - np.nanmean(y)

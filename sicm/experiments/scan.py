@@ -249,6 +249,37 @@ class Scan(Experiment):
             X, Y, Z = X[:-1], Y[:-1], Z[:-1]
         return X, Y, Z
 
+    def _calculate_interval_adjustment(approach_linenos, approach_data):
+        """Calculate length-of-interval adjustment for first approach"""
+        # Gather information on approach/retract speeds.
+        speeds = np.empty((len(approach_linenos), 2))
+        lengths = np.empty((len(approach_linenos), 2))
+        for i, (aln, rln) in enumerate(zip(approach_data, approach_linenos)):
+            z_down = approach_data["Z(um)"][approach_data["LineNumber"] == aln]
+            #z_up = retract_data["Z(um)"][retract_data["LineNumber"] == rln]
+            dt_down = approach_data["dt(s)"][approach_data["LineNumber"] == aln][1:]
+            #dt_up = retract_data["dt(s)"][retract_data["LineNumber"] == rln][1:]
+            ## Intial about 150 points of approach are collected while z is still constant!
+            ## This happends while X piezo readjusts, here we manually adjust for this
+            z_diff_down = np.abs(np.diff(z_down))
+            try:
+                z_step_down = np.sort(z_diff_down)[-5]
+            except IndexError as e:
+                z_step_down = np.quantile(z_diff_down, 0.9)
+
+            after_init_down = np.nonzero(z_diff_down > z_step_down / 3)[0]
+            down_speed = np.mean(z_diff_down[after_init_down] / dt_down[after_init_down])
+            ## Speed of movement up
+            up_speed = np.mean(np.abs(np.diff(z_up) / dt_up))
+            ## Assing.
+            speeds[i, :] = [down_speed, up_speed]
+            lengths[i, :] = [len(z_down), len(z_up)]
+
+        # Compute interval length adjustment for the first approach
+        speed_ratio = np.mean(speeds[1:, 0]) / speeds[0, 0]
+        first_length_adj = np.int(np.mean(lengths[1:, 0]) * speed_ratio)
+        return first_length_adj
+
     def annotate_peaks(self, sel = None, window_size = 250):
         """Mark locations of low-peaks in data
 
@@ -332,9 +363,19 @@ class Scan(Experiment):
         fpath = utils.make_fname(fpath, "_approach{}".format(loc_str), ext = ".png")
         plots.plot_generic(x_ax, y_ax, x_lab, y_lab, fname = fpath)
 
+    def _get_descriptor_fun(self, descriptor):
+        """Fetch function based on its name"""
+        try:
+            fun_ = getattr(np, descriptor)
+        except Exception as e:
+            print("Decriptor {} not found, selecting 'mean'.")
+            fun_ = np.mean
+        return fun_
+
     def plot_slices(self, X, Y, tilt, n_slices = 10, thickness = .9,
                     zrange = (None, None), clip = (None, None),
-                    scaleby = "hop", n_levels = 10, z_coords = "common"):
+                    scaleby = "hop", center = True,  n_levels = 10,
+                    descriptor = "mean", z_coords = "common"):
         """Plot measurmement values at different z-locations as slices
 
         Parameters
@@ -375,29 +416,9 @@ class Scan(Experiment):
             # bulk_current = np.quantile(approach_current[idxs], 0.95)
             bulk_current = trim_mean(approach_current[idxs], 0.1)
 
-        # Gather information on approach/retract speeds.
-        speeds = np.empty((len(approach_linenos), 2))
-        lengths = np.empty((len(approach_linenos), 2))
-        for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
-            z_down = approach_data["Z(um)"][approach_data["LineNumber"] == aln]
-            z_up = retract_data["Z(um)"][retract_data["LineNumber"] == rln]
-            dt_down = approach_data["dt(s)"][approach_data["LineNumber"] == aln][1:]
-            dt_up = retract_data["dt(s)"][retract_data["LineNumber"] == rln][1:]
-            ## Intial about 150 points of approach are collected while z is still constant!
-            ## This happends while X piezo readjusts, here we manually adjust for this
-            z_diff_down = np.abs(np.diff(z_down))
-            z_step_down = np.sort(z_diff_down)[-5]
-            after_init_down = np.nonzero(z_diff_down > z_step_down / 3)[0]
-            down_speed = np.mean(z_diff_down[after_init_down] / dt_down[after_init_down])
-            ## Speed of movement up
-            up_speed = np.mean(np.abs(np.diff(z_up) / dt_up))
-            ## Assing.
-            speeds[i, :] = [down_speed, up_speed]
-            lengths[i, :] = [len(z_down), len(z_up)]
 
-        # Compute interval length adjustment for the first approach
-        speed_ratio = np.mean(speeds[1:, 0]) / speeds[0, 0]
-        first_length_adj = np.int(np.mean(lengths[1:, 0]) * speed_ratio)
+        # first_length_adj = _calculate_interval_adjustment(  approach_linenos,
+        #                                                     approach_data)
 
         # Vectorization possible?
         z_axs = []
@@ -454,7 +475,7 @@ class Scan(Experiment):
         slices_z_locs, z_delta = np.linspace(zrange[0], zrange[1], n_slices, retstep = True)
         # Adjust the interval by delta-multiplier*z_delta up
         delta_multiplier  = thickness / 2 # relative half-width of interval
-        slices_z_locs, z_delta = np.linspace(delta_multiplier * z_delta,
+        slices_z_locs, z_delta = np.linspace(slices_z_locs[0]+delta_multiplier*z_delta,
                                 slices_z_locs[-1] - delta_multiplier * z_delta, n_slices,
                                 retstep = True)
         # Keep the slice thickness for further use as string in annotation
@@ -468,6 +489,8 @@ class Scan(Experiment):
         v_surfs = np.full(tilt.shape + (len(keypairs), ), np.nan)
         good_keys = []
 
+        ## Obtain descriptor
+        descriptor_fun = self._get_descriptor_fun(descriptor)
         for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
             for k, key in enumerate(keypairs.keys()):
                 # one of the two may not be always present.
@@ -512,7 +535,7 @@ class Scan(Experiment):
 
                         # Tested mean and mean, result was alike
                         # Mean may be better with noise, edian with outliers
-                        measurements[i, j, k] = np.max(v_sub)
+                        measurements[i, j, k] = descriptor_fun(v_sub)
                         stds[i, j, k] = np.std(v_sub)
                         # Warn user if data potentialy unreliable
                         if np.std(v_sub) == 0:
@@ -534,6 +557,7 @@ class Scan(Experiment):
                 raise Exception("All measurements for {} are NaN!".format(key))
 
             # Make colorbar extents common to all slices for given key
+
             cbar_lims_stds  = (np.nanmin(val_stds), np.nanmax(val_stds))
             cbar_lims = (np.nanmin(val), np.nanmax(val))
             # Apply clipping for visualization if desired
@@ -565,7 +589,7 @@ class Scan(Experiment):
                 fname = utils.make_fname(fpath, "_" + str(np.int(slice_id + 1)))
                 surface.plot_slice(X, Y, slice, label,
                                 title = title, fname = fname,
-                                cbar_lims = cbar_lims, center = False,
+                                cbar_lims = cbar_lims, center = center,
                                 n_levels = n_levels)
                 # STDS
                 fname = utils.make_fname(fpath_stds, "_" + str(np.int(slice_id + 1)))
@@ -578,14 +602,15 @@ class Scan(Experiment):
             title = "slice {:d} @ {}".format(0, "surface")
             fname = utils.make_fname(fpath, "_" + "0")
             surface.plot_slice(X, Y, slice, label,
-                            title = title, fname = fname, center = False,
+                            title = title, fname = fname, center = center,
                             cbar_lims = cbar_lims, n_levels = n_levels)
 
             plt.close('all')
 
     def plot_surface(   self, plot_current = False, plot_slices = False, n_slices = 10,
                         center = False, thickness = 0.9, zrange = (None, None),
-                        clip = (None, None), scaleby = "hop", n_levels = 10,):
+                        clip = (None, None), scaleby = "hop", n_levels = 10,
+                        descriptor = "mean"):
         """Plot surface as contours and 3D"""
         # Plot downsampled Data
         result = self.dsdata
@@ -617,10 +642,11 @@ class Scan(Experiment):
         X, Y, Z = self._remove_last_datapoint(X, Y, Z)
         is_interactive = utils.check_if_interactive()
         # Level Z coordinates
+
         Z_corr, Z_tilt = analysis.level_plane(  X, Y, Z, True, is_interactive,
                                                 z_lab = z_lab)
 
         if plot_slices:
             self.plot_slices(   X, Y, Z_tilt, n_slices, thickness, zrange, clip,
-                                scaleby, n_levels)
+                                scaleby, center, n_levels, descriptor)
         surface.plot_surface_contours( X, Y, Z_corr, z_lab, self.get_fpath(), center)
