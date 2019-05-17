@@ -278,7 +278,6 @@ class SICMModel(Model):
 
         self.plot_fit(y, x, double_ax = double_ax)
 
-
 class TemperatureModel(Model):
     """Model of current-distance-temperature dependence"""
     def __init__(self, x, y):
@@ -485,6 +484,62 @@ class Laser(Model):
             y = np.maximum(zero , c1*x + c2)
             return y
         return _relu_fit, guess
+
+    def fit(self, *args, **kwargs):
+        self._fit(*args, **kwargs)
+
+    def plot(self, fname = None):
+        """Plot data
+
+        Parameters
+        --------
+        fname: str
+            Optional fpath for saving data
+        """
+        y = self.y
+        x = self.x
+        plots.plot_generic( [x], [y], ["Driving Current [a.u.]"], ["Power [mw]"],
+                            fname = fname)
+
+class GaussianBeam(Model):
+    """Fit a gaussian beam model to an image of laser spot
+    """
+
+    def __init__(self, impath):
+        self.x = io.load_image(impath)
+        self.z = z
+        super(GaussianBeam, self).__init__()
+
+    @property
+    def fun(self):
+        val, _ = self._fit_wrapper()
+        return val
+
+    @property
+    def fwhm(self):
+        try:
+            val = self.popt[1] * np.sqrt(2 * np.log(2))
+        except Exception as e: #popt not assigned yet
+            val = np.nan
+        return val
+
+    def _fit_wrapper(self):
+        """"Fit convenience wrapper"""
+        guess = [0.5, 50e-6]
+        def _gaussian_beam_model(x, *params):
+            """Fit gaussian beam model to an image of focal spot
+
+            Parameters
+            -----------
+            x: array-like
+                (M, N) or (M, N, 3) image data
+            params: tuple of floats
+                Parameters of the model
+            """
+            P, w0 = params
+            y = (2 * P) / (np.pi * w0**2) * np.exp((-2 * x**2) / w0**2)
+            return y
+        return _gaussian_beam_model, guess
 
     def fit(self, *args, **kwargs):
         self._fit(*args, **kwargs)

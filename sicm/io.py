@@ -8,6 +8,7 @@ import re
 import time
 import copy
 import pandas as pd
+from matplotlib.image import imread
 
 def load_result(files = [], exp_name = ""):
     """Load data for files
@@ -242,3 +243,17 @@ def quoted_data_reader(tsvfile):
             # nested_row = (x.split("\t") for x in row)
             # yield (y for sublist in nested_row for y in sublist)
             yield row
+
+def load_image(imdir, imname):
+    """Load image to an array"""
+    impath = os.path.join(imdir, imname)
+    img = imread(impath)
+    return img
+
+def rgb2gray(rgb):
+    """Convert RGB to grayscale using standard formula
+
+    References:
+    [1]  https://pillow.readthedocs.io/en/3.2.x/reference/Image.html#PIL.Image.Image.convert
+    """
+    return np.dot(rgb[:,:, :3], [0.2989, 0.5870, 0.1140])
