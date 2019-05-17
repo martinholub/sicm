@@ -38,6 +38,59 @@ def make_colorbar(fig, cmap, levels, cmin, cmax):
                         format = "%.3f", drawedges = False)
     return cbar
 
+def _make_mask(x, y, x_range, y_range):
+    """Make mask based on X,Y coordinates"""
+    if x is not None:
+        cond1 = np.logical_and(x > x_range[0], x < x_range[1])
+    if y is not None:
+        cond2 = np.logical_and(y > y_range[0], y < y_range[1])
+    if x is not None and y is not None:
+        mask = np.logical_and(cond1, cond2)
+    else:
+         mask = None
+    return mask
+
+def adjust_saliency(z, clip = None, x = None, y = None):
+    """Adjust saliency
+
+    Parameters
+    ---------
+    z: array-like
+    clip: tuple
+    x: array-like
+    y: array-like
+
+    Returns
+    -------------
+    z: array-like
+        z, with saliency scaled in region selected by mask.
+    """
+    params = {  "x_range": [22.5, 32.5],
+                "y_range": [0.0, 62.5],
+                "thresh_quantile": 0.25}
+    # Select region of array to look at
+    mask = _make_mask(x, y, params["x_range"], params["y_range"])
+    if mask is None:
+        mask = [True] * len(z)
+
+    ## compute scaling weights
+    weight = 1 / z[mask]
+    # thresh_quantile = np.quantile(weight[weight > 1.0], 0.35)
+    # weight[weight > thresh_quantile] = thresh_quantile
+    ## Don't scale anythign up
+    weight[weight > 1.0] = 1.0
+    # scale down, but avoid scaling too much
+    thresh_quantile = np.quantile(weight[weight < 1.0], params["thresh_quantile"])
+    weight[weight < thresh_quantile] = thresh_quantile
+    # Apply clip to the data
+    ## This may not be necessary, as data is clipped fro plotting anyway.
+    if clip is not None:
+        z[z > clip[1]] = clip[1]
+        z[z < clip[0]] = clip[0]
+    ## aply weights multiplier in selected region
+    z[mask] *= weight
+    return z, params
+
 def _plot_surface_1(ax, x, y, z, cmap):
     """Plot 3d surface data without interpolation
 
@@ -122,7 +175,7 @@ def _plot_contour_2(ax, x, y, z, cmap, norm):
     conts = ax.contourf(x_sq, y_sq, z_sq, cmap =cmap, levels = 10, norm = norm)
     return conts
 
-def _plot_contour_3(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10):
+def _plot_contour_3(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10, z_aux = None):
     """Render 2D filled contour plot with triangulation
 
     Parameters
@@ -142,10 +195,25 @@ def _plot_contour_3(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10):
     else:
         # Extend 'both' replaces colors out of range by low-high range limits
         conts = ax.tricontourf( x, y, z, cmap = cmap, levels = levels,
-                                norm = norm, extend = "both")
+                                norm = norm, extend = "both", alpha = 0.75)
+    if z_aux is not None:
+        # scale and convert to nm
+        z_aux = (z_aux - np.nanmin(z_aux)) * 1e3
+        conts_aux = ax.tricontour(x, y, z_aux, colors = "black", alpha = 0.1,
+                                    linewidths = mpl.rcParams["lines.linewidth"]*0.2)
+        plt.clabel( conts_aux, conts_aux.levels[::2], fmt = "%1.1f",
+                    inline = True, fontsize = 4)
+
+    ## Plotting data as an image. Not very nice.
+    # z_ = np.reshape(z[:np.int(np.sqrt(z.shape[0]))**2], (np.int(np.sqrt(z.shape[0])), -1))
+    # z_[1::2, :] = z_[1::2, ::-1]
+    # conts = ax.imshow(  z_, cmap = cmap, norm = norm,
+    #                     extent = [x.min(), x.max(), y.min(), y.max()],
+    #                     alpha = 0.5)
+
     return conts
 
-def plot_contour(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10):
+def plot_contour(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10, z_aux = None):
     """Render 2D filled contour plot with triangulation
 
     Parameters
@@ -160,11 +228,11 @@ def plot_contour(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10):
         Levels of contour plot. If int, levels are determined by pyplot.
         (It should give the same result though)
     """
-    conts = _plot_contour_3(ax, x, y, z, cmap, norm, levels)
+    conts = _plot_contour_3(ax, x, y, z, cmap, norm, levels, z_aux)
     return conts
 
-def _plot_surface_contours(x, y, z, z_lab = "Z", ax = None, title = None,
-                    fname = None, colors = None, center = True):
+def _plot_surface_contours( x, y, z, z_lab = "Z", ax = None, title = None,
+                            fname = None, colors = None, center = True):
     """Plot 3D surface contours
     """
     if ax is None:
@@ -202,7 +270,7 @@ def _plot_surface_contours(x, y, z, z_lab = "Z", ax = None, title = None,
 
 def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
                 fname = None, cbar_lims = (None, None), center = True,
-                n_levels = 10):
+                n_levels = 10, z_aux = None):
     """Render 2D filled contour plot with triangulation
 
     Parameters
@@ -250,14 +318,15 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
                 else:
                     levels_cbar = np.linspace(z.min(), z.max(), n_levels)
                 norm = mpl.colors.Normalize(vmin = cbar_lims[0], vmax = cbar_lims[1], clip = True)
-                conts = plot_contour(ax, x, y, z, norm = norm, levels = levels_conts)
+                conts = plot_contour(ax, x, y, z, norm = norm, levels = levels_conts,
+                                    z_aux = z_aux)
                 cbar = make_colorbar(fig, conts.cmap, levels_cbar, *cbar_lims)
 
     cbar.ax.set_ylabel(z_lab)
 
     ax.set_xlabel('X(um)')
     ax.set_ylabel('Y(um)')
-    # plt.axis("scaled") # use this if data not square
+    plt.axis("scaled") # use this if data not square
 
     # Set descriptive title
     if title is not None:
@@ -298,7 +367,10 @@ def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = False):
 
     # Save figure
     if fpath is not None:
-        fname = utils.make_fname(fpath, "_surface")
+        appex = "_surface"
+        if z_lab.lower().startswith("cu"):
+            appex += "Current"
+        fname = utils.make_fname(fpath, appex)
         utils.save_fig(fname, ext = ".png")
     # Show
     plt.show()

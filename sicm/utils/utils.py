@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import re
-
+import json
 
 def make_fname(fname, suffix = "", ext = ".pdf", subdirname = ""):
     # Append suffix to filename and remove non-desirable characters
@@ -52,3 +52,11 @@ def check_if_interactive():
     except NameError as e:
         is_interactive = True # command line
     return is_interactive
+
+def save_dict(d, fname):
+    """Save dictionary to JSON
+    """
+    # Make sure it is json!
+    # fname = make_fname(fname, suffix = "", ext = ".json", subdirname = "")
+    with open(fname, "w") as wd:
+        json.dump(d, wd, indent = 4, sort_keys = True)

@@ -19,7 +19,7 @@ def hop_or_bulk_str(x):
 def descriptor_validator(x):
     if not isinstance(x, (str, )): return "mean"
     x = x.lower()
-    if x not in ["mean", "median", "max", "min"]:
+    if x not in ["mean", "median", "max", "min", "trim_mean"]:
         x = "mean"
     return x
 
@@ -50,6 +50,12 @@ class SubArgParser(ArgumentParser):
                             type = float, action="store", help = "Relative thickness of each slice.")
         self.add_argument(  "--center", dest = "center",
                             action="store_true", help = "Center values around/at 0?")
+        self.add_argument(  "--overlay", dest = "overlay",
+                            action="store_true",
+                            help = "Overlay topography over current slices?")
+        self.add_argument(  "--adjust", dest = "adjust",
+                            action="store_true",
+                            help = "Adjust saliency in selected region?")
         self.add_argument(  "--scale",  dest = "scale", type = hop_or_bulk_str,
                             action="store", default = "hop",
                             help = "Scale by 'bulk' or 'hop'?")

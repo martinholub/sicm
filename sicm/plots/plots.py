@@ -175,7 +175,7 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
     plt.show()
 
 def _set_rcparams():
-    plt.style.use("seaborn")
+    plt.style.use("seaborn-white")
     params = {  "font.family": "serif",
                 "font.weight": "normal",
                 "xtick.labelsize": 10,

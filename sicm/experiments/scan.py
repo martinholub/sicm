@@ -365,17 +365,23 @@ class Scan(Experiment):
 
     def _get_descriptor_fun(self, descriptor):
         """Fetch function based on its name"""
-        try:
-            fun_ = getattr(np, descriptor)
-        except Exception as e:
-            print("Decriptor {} not found, selecting 'mean'.")
-            fun_ = np.mean
+        if descriptor == "trim_mean":
+            def trim_mean_(x): # get default for proportion to trim on both sideds
+                return trim_mean(x, 0.1)
+            fun_ = trim_mean_
+        else:
+            try:
+                fun_ = getattr(np, descriptor)
+            except Exception as e:
+                print("Decriptor {} not found, selecting 'mean'.")
+                fun_ = np.mean
         return fun_
 
     def plot_slices(self, X, Y, tilt, n_slices = 10, thickness = .9,
                     zrange = (None, None), clip = (None, None),
                     scaleby = "hop", center = True,  n_levels = 10,
-                    descriptor = "mean", z_coords = "common"):
+                    descriptor = "mean", Z_aux = None, adjust = False,
+                    z_coords = "common"):
         """Plot measurmement values at different z-locations as slices
 
         Parameters
@@ -392,9 +398,13 @@ class Scan(Experiment):
             Either "hop" or "bulk". Choosing "hop" scales each rendered value by
             the value at the top of corresponding approach.
         """
-        # Look at raw data
-        data = self._trim_data(self._data, self.x_trim, self.y_trim)
-        uniqs, cnts = np.unique(data["LineNumber"], return_counts=True)
+        ## Look at raw data and trim here
+        # data = self._trim_data(self._data, self.x_trim, self.y_trim)
+        # uniqs, cnts = np.unique(data["LineNumber"], return_counts=True)
+        ## Get infromation from dsdata and use nontrimmed raw data
+        trimmed_data = self.dsdata
+        data = self._data
+        uniqs, cnts = np.unique(trimmed_data["LineNumber"], return_counts=True)
         # Obtain all approaches
         approach_linenos = np.arange(2, max(uniqs) -1, 3)
         ## include effect of trimming
@@ -403,7 +413,7 @@ class Scan(Experiment):
         # obtain all retracts
         retract_linenos = approach_linenos + 1
         ## include effect of trimming
-        retract_linenos = retract_linenos[np.in1d(retract_linenos, uniqs)]
+        retract_linenos = retract_linenos[np.in1d(retract_linenos, uniqs + 1)]
         retract_data, retract_idxs = downsample_to_linenumber(data, retract_linenos, "all")
 
         # extract bulk current from intial approach from raw data
@@ -459,8 +469,6 @@ class Scan(Experiment):
         # It is slightly mitigated by adding retract data, but this presumes
         # that the data from approach and retract are of comparable nature.
         # The approach is less reliable for far-away z-coordinates (>75% of z_coords)
-        # because occasionally only retract points will be considered for given X,Y.
-
         z_diffs = [zz.max() - zz.min() for zz in z_axs]
         if z_coords.lower().startswith("c"):
             interval_end = np.min(z_diffs)
@@ -472,8 +480,11 @@ class Scan(Experiment):
 
         if zrange is None:
             zrange = (0, interval_end)
-        slices_z_locs, z_delta = np.linspace(zrange[0], zrange[1], n_slices, retstep = True)
-        # Adjust the interval by delta-multiplier*z_delta up
+        else:
+            assert zrange[0] >= 0
+        slices_z_locs, z_delta = np.linspace(   zrange[0], zrange[1], n_slices,
+                                                retstep = True)
+        # Make sure slcies have whole thicknes within intervall boundaries.
         delta_multiplier  = thickness / 2 # relative half-width of interval
         slices_z_locs, z_delta = np.linspace(slices_z_locs[0]+delta_multiplier*z_delta,
                                 slices_z_locs[-1] - delta_multiplier * z_delta, n_slices,
@@ -549,12 +560,18 @@ class Scan(Experiment):
         # Iterate over measured parameters
 
         for i, (key, label) in enumerate(keypairs.items()):
-            val = np.squeeze(measurements[:,:, i])
+            val_ = np.squeeze(measurements[:,:, i])
             val_stds = np.squeeze(stds[:,:, i])
             # Skip given measurmement if we dont have data
             if key not in good_keys: continue
-            if np.isnan(val).all():
+            if np.isnan(val_).all():
                 raise Exception("All measurements for {} are NaN!".format(key))
+
+            if adjust:
+                val, params_adj = surface.adjust_saliency(deepcopy(val_), clip, X, Y)
+            else:
+                val = val_
+                params_adj = {}
 
             # Make colorbar extents common to all slices for given key
 
@@ -590,12 +607,13 @@ class Scan(Experiment):
                 surface.plot_slice(X, Y, slice, label,
                                 title = title, fname = fname,
                                 cbar_lims = cbar_lims, center = center,
-                                n_levels = n_levels)
+                                n_levels = n_levels, z_aux = Z_aux)
                 # STDS
                 fname = utils.make_fname(fpath_stds, "_" + str(np.int(slice_id + 1)))
                 surface.plot_slice(X, Y, slice_stds, "$\sigma_{norm}$",
                                 title = title, fname = fname,
-                                cbar_lims = cbar_lims_stds, center = False)
+                                cbar_lims = cbar_lims_stds, center = False,
+                                z_aux = Z_aux)
 
             # Plot also Surface measuremnets
             slice = np.squeeze(v_surfs[:, i])
@@ -603,14 +621,30 @@ class Scan(Experiment):
             fname = utils.make_fname(fpath, "_" + "0")
             surface.plot_slice(X, Y, slice, label,
                             title = title, fname = fname, center = center,
-                            cbar_lims = cbar_lims, n_levels = n_levels)
+                            cbar_lims = (np.nanmin(slice), np.nanmax(slice)),
+                            n_levels = n_levels, z_aux = Z_aux)
 
             plt.close('all')
+
+            # Save parameters
+            fname_params = utils.make_fname(   fpath_, subdirname = "slices",
+                                                suffix = "_params", ext = ".json")
+            param_dict = {  "thickness": thickness,
+                            "n_levels": n_levels,
+                            "center": center,
+                            "z_range": zrange,
+                            "clip": clip,
+                            "scale": scaleby,
+                            "descriptor": descriptor,
+                            "overlay": True if Z_aux is not None else False}
+            if adjust:
+                params_dict.update({"saliency": params_adj})
+            utils.save_dict(param_dict, fname_params)
 
     def plot_surface(   self, plot_current = False, plot_slices = False, n_slices = 10,
                         center = False, thickness = 0.9, zrange = (None, None),
                         clip = (None, None), scaleby = "hop", n_levels = 10,
-                        descriptor = "mean"):
+                        descriptor = "mean", overlay = False, adjust = False):
         """Plot surface as contours and 3D"""
         # Plot downsampled Data
         result = self.dsdata
@@ -647,6 +681,8 @@ class Scan(Experiment):
                                                 z_lab = z_lab)
 
         if plot_slices:
+            Z_aux = Z_corr if overlay else None
             self.plot_slices(   X, Y, Z_tilt, n_slices, thickness, zrange, clip,
-                                scaleby, center, n_levels, descriptor)
+                                scaleby, center, n_levels, descriptor, Z_aux,
+                                adjust)
         surface.plot_surface_contours( X, Y, Z_corr, z_lab, self.get_fpath(), center)
