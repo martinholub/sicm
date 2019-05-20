@@ -187,7 +187,8 @@ def _set_rcparams():
     mpl.rcParams.update(params)
 
 
-def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = None):
+def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = None,
+                ax = None, text = None, text_loc = (0.1, 0.1)):
     """Generic ploting function
 
     This is an attempt of generic function that produces publication quality
@@ -205,8 +206,9 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
     if len(y_labs) <= len(Ys):
         y_labs = y_labs + [y_labs[-1]] * (len(Ys) - len(y_labs))
 
-    fig = plt.figure(figsize = (4.5, 4.5))
-    ax = fig.add_subplot(1, 1, 1)
+    if ax is None:
+        fig = plt.figure(figsize = (4.5, 4.5))
+        ax = fig.add_subplot(1, 1, 1)
     fmts = fmts[0:len(Xs[0])]
     for x, y, x_lab, y_lab, fmt in zip(Xs, Ys, x_labs, y_labs, fmts):
         line = ax.plot(x, y, fmt)
@@ -223,6 +225,10 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
         # bbox_to_anchor=(1.01,1), loc="upper left" # if you need the legend outside
     elif len(Xs) > 1:
         plt.legend(range(len(Xs)))
+
+    if text is not None:
+        ax.text(text_loc[0], text_loc[1], text, transform = ax.transAxes,
+                color = "black")
 
     if fname is not None:
         utils.save_fig(fname)

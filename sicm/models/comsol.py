@@ -1,0 +1,124 @@
+import os
+import numpy as np
+import timeit
+from scipy.optimize import curve_fit
+
+
+from sicm import io
+from sicm.plots import plots
+from sicm.utils import utils
+from .model import Model
+from sicm.sicm import Approach, ApproachList
+
+
+import matplotlib.pyplot as plt
+
+class ComsolData(object):
+    """Data Exported from COMSOL"""
+    def __init__(self, datadir, exp_name):
+        self.name = exp_name
+        self.datadir = datadir
+        self.data, self.date = self._load_data(datadir, exp_name)
+
+    def _load_data(self, datadir, exp_name):
+        """Load results of a comsol parametric sweep"""
+        fpath = os.path.join(datadir, exp_name)
+        data, date = io.load_comsol(fpath)
+        return data, date
+
+
+class ComsolModel(Model):
+    """Comsol Model of Thermometry
+
+    Parameters
+    ---------------
+    datadir: str
+    exp_name: str
+    """
+    def __init__(self, datadir, exp_name):
+        self.comsol = ComsolData(datadir, exp_name)
+        self.approach = None
+        super(ComsolModel, self).__init__()
+
+    def add_approach(self, datadir, exp_name, z_move = 25, preserve_overlap = True):
+        """Add approach data
+
+        In order to test validity of numerical model, add experimentally obtained
+        approach curve.
+
+        Parameters
+        ------------
+        datadir: str or list
+        exp_name: str or list
+            If list, multiple approaches are stitched together.
+        z_move: int
+            Distance (in um) between consecutive approaches (if multiple)
+        preserve_overlap: bool
+        """
+        if isinstance(datadir, (list, )) or isinstance(exp_name, (list, )):
+            app_list  = ApproachList(datadir, exp_name)
+            self.approach = app_list.stitch(z_move = z_move,
+                                            preserve_overlap = preserve_overlap)
+            # Check that stitching works consistently
+            assert len(set([v.shape[0] for v in self.approach.dsdata.values()])) == 1
+        else:
+            self.approach = Approach(datadir, exp_name)
+
+
+    def plot_grid(self, pipette_diameter = 220, show_experiment = True):
+        """Plot all numerical results on grid
+
+        Displays result of numerically simulated approach at different temperatures.
+        If experimental data avialable it is superimposed in all plots.
+        """
+        uniq_tkelvs = self.comsol.data["Tsub (K)"].unique()
+        nrows = np.int(np.ceil(len(uniq_tkelvs) / 2))
+        fig, axs = plt.subplots(nrows = nrows, ncols = 2, figsize = (10, nrows * 4))
+        axs = axs.flatten()
+
+        title = "Comsol Param Grid" + "\n" + \
+                "Model: {} @ {}".format(self.comsol.name, self.comsol.date)
+
+
+        for i, tkelv in enumerate(uniq_tkelvs):
+            # Look at given temperature
+            sel = self.comsol.data["Tsub (K)"] == tkelv
+            y = np.abs(self.comsol.data[sel].iloc[:, 2].values.flatten())
+            # scale y-axis by bulk current value
+            ## here it is the last one obtained
+            y = y / y[-1]
+            ## Plot just some data, for easier visualization
+            sel2 = y >= 0.9
+            y = [y[sel2]]
+            x = self.comsol.data["d (m)"][sel].values.flatten()[sel2]
+            # Scale x-axis by pipette diameter
+            x = [x / (pipette_diameter * 1e-9)]
+
+            txt = "T = {:.1f} K".format(tkelv)
+            legend = ["model, " + txt]
+            y_lab = [r"$I/I_{bulk}$"]
+            x_lab = [r"$z/d$"]
+
+            if show_experiment:
+                try:
+                    # Assign x-axis, set origin to 0 and scale by pipette diameter
+                    x_ = self.approach.dsdata["Z(um)"]
+                    x_ = x_ - np.min(x_)
+                    x_ = x_ / (pipette_diameter * 1e-3)
+                    x += [x_]
+                    # Assign y-axis, scale by bulk value (robustly)
+                    y_ = self.approach.dsdata["Current1(A)"]
+                    t_ = np.cumsum(self.approach.dsdata["dt(s)"])
+                    y_ = y_ / np.quantile(y_[np.nonzero(t_ < 250e-3)[0]], 0.5)
+                    y += [y_]
+                    # Add descriptive fields
+                    legend += ["experiment"]
+                    if i == 0:
+                        title = title + "\n" + \
+                                "Experiment: {} @ {}".format(self.approach.name, self.approach.date)
+                except Exception as e:
+                    # Approach most likely not assigned, don't try.
+                    pass
+
+            plots.plot_generic(x, y, x_lab, y_lab, legend = legend, ax = axs[i])
+        fig.suptitle(title, size = 12, y = 0.98)
