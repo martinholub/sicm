@@ -211,7 +211,16 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
         ax = fig.add_subplot(1, 1, 1)
     fmts = fmts[0:len(Xs[0])]
     for x, y, x_lab, y_lab, fmt in zip(Xs, Ys, x_labs, y_labs, fmts):
-        line = ax.plot(x, y, fmt)
+        try:
+            line = ax.plot(x, y, fmt)
+        except ValueError as e:
+            try: # allow grey colors in dirty way
+                line = ax.plot(x, y, linestyle = fmt[0], color = "gray")
+            except ValueError as e:
+                try:
+                    line = ax.plot(x, y, marker = fmt[0], color = "gray")
+                except Exception as e:
+                    raise e
         ax.set_xlabel(x_lab)
         ax.set_ylabel(y_lab)
         if re.match("log( ?|\()", x_lab, re.IGNORECASE): ax.set_xscale("log")
@@ -219,7 +228,7 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
 
     if legend is not None and legend != "":
         if not isinstance(legend, (list, tuple)): legend = [legend]
-        legend = ['\n'.join(wrap(l, 20)) if not l.startswith("$") else l for l in legend ]
+        legend = ['\n'.join(wrap(l, 21)) if not l.startswith("$") else l for l in legend]
         ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
                     borderaxespad = 1.1)
         # bbox_to_anchor=(1.01,1), loc="upper left" # if you need the legend outside

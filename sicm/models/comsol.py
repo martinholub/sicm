@@ -64,26 +64,36 @@ class ComsolModel(Model):
         else:
             self.approach = Approach(datadir, exp_name)
 
+    def _select_variable(self, variable = None):
+        """Select variable to plot grid for """
+        if variable is not None:
+            return variable
+        else:
+            keys = list(self.comsol.data.keys())
+            n_repeats = [len(self.comsol.data[k].unique()) for k in keys]
+            valid_keys  = [k for k, nr in zip(keys, n_repeats) if nr > 1 and k != "d (m)"]
+            return valid_keys[0]
 
-    def plot_grid(self, pipette_diameter = 220, show_experiment = True):
+    def plot_grid(self, pipette_diameter = 220, show_experiment = True, variable = None,
+                    col = 2):
         """Plot all numerical results on grid
 
         Displays result of numerically simulated approach at different temperatures.
         If experimental data avialable it is superimposed in all plots.
         """
-        uniq_tkelvs = self.comsol.data["Tsub (K)"].unique()
-        nrows = np.int(np.ceil(len(uniq_tkelvs) / 2))
+        var_name = self._select_variable()
+        uniqs = self.comsol.data[var_name].unique()
+        nrows = np.int(np.ceil(len(uniqs) / 2))
         fig, axs = plt.subplots(nrows = nrows, ncols = 2, figsize = (10, nrows * 4))
         axs = axs.flatten()
 
         title = "Comsol Param Grid" + "\n" + \
                 "Model: {} @ {}".format(self.comsol.name, self.comsol.date)
 
-
-        for i, tkelv in enumerate(uniq_tkelvs):
+        for i, var in enumerate(uniqs):
             # Look at given temperature
-            sel = self.comsol.data["Tsub (K)"] == tkelv
-            y = np.abs(self.comsol.data[sel].iloc[:, 2].values.flatten())
+            sel = self.comsol.data[var_name] == var
+            y = np.abs(self.comsol.data[sel].iloc[:, col].values.flatten())
             # scale y-axis by bulk current value
             ## here it is the last one obtained
             y = y / y[-1]
@@ -94,8 +104,11 @@ class ComsolModel(Model):
             # Scale x-axis by pipette diameter
             x = [x / (pipette_diameter * 1e-9)]
 
-            txt = "T = {:.1f} K".format(tkelv)
-            legend = ["model, " + txt]
+            if var_name.lower().startswith("t"):
+                txt = "T = {:.1f} K".format(var)
+            elif var_name.lower().startswith(("r")):
+                txt = r"$r_{{sub}}$={:.1f}$\mu m$".format(var * 1e6)
+            legend = [txt]
             y_lab = [r"$I/I_{bulk}$"]
             x_lab = [r"$z/d$"]
 
@@ -120,5 +133,9 @@ class ComsolModel(Model):
                     # Approach most likely not assigned, don't try.
                     pass
 
-            plots.plot_generic(x, y, x_lab, y_lab, legend = legend, ax = axs[i])
-        fig.suptitle(title, size = 12, y = 0.98)
+            plots.plot_generic(x, y, x_lab, y_lab, legend = legend, ax = axs[i],
+                                fmts = ["-k", "-gray"])
+        fig.suptitle(title, size = 12, y = 0.92)
+
+        fpath = os.path.join(self.comsol.datadir, self.comsol.name)
+        utils.save_fig(fpath, self.comsol.date)
