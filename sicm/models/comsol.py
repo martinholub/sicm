@@ -98,7 +98,7 @@ class ComsolModel(Model):
             ## here it is the last one obtained
             y = y / y[-1]
             ## Plot just some data, for easier visualization
-            sel2 = y >= 0.9
+            sel2 = y >= 0.95
             y = [y[sel2]]
             x = self.comsol.data["d (m)"][sel].values.flatten()[sel2]
             # Scale x-axis by pipette diameter
