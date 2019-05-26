@@ -75,14 +75,17 @@ class ComsolModel(Model):
             return valid_keys[0]
 
     def plot_grid(self, pipette_diameter = 220, show_experiment = True, variable = None,
-                    col = 2):
+                    col = 2, offset = 0, add_unity_line = False):
         """Plot all numerical results on grid
 
         Displays result of numerically simulated approach at different temperatures.
         If experimental data avialable it is superimposed in all plots.
         """
-        var_name = self._select_variable()
-        uniqs = self.comsol.data[var_name].unique()
+        var_name = self._select_variable(variable)
+        try:
+            uniqs = self.comsol.data[var_name].unique()
+        except KeyError as e:
+            uniqs = [None]
         nrows = np.int(np.ceil(len(uniqs) / 2))
         fig, axs = plt.subplots(nrows = nrows, ncols = 2, figsize = (10, nrows * 4))
         axs = axs.flatten()
@@ -92,13 +95,16 @@ class ComsolModel(Model):
 
         for i, var in enumerate(uniqs):
             # Look at given temperature
-            sel = self.comsol.data[var_name] == var
+            if var is None:
+                sel = [True] * len(self.comsol.data)
+            else:
+                sel = self.comsol.data[var_name] == var
             y = np.abs(self.comsol.data[sel].iloc[:, col].values.flatten())
             # scale y-axis by bulk current value
             ## here it is the last one obtained
             y = y / y[-1]
             ## Plot just some data, for easier visualization
-            sel2 = y >= 0.95
+            sel2 = y >= 0.97
             y = [y[sel2]]
             x = self.comsol.data["d (m)"][sel].values.flatten()[sel2]
             # Scale x-axis by pipette diameter
@@ -111,12 +117,16 @@ class ComsolModel(Model):
             legend = [txt]
             y_lab = [r"$I/I_{bulk}$"]
             x_lab = [r"$z/d$"]
+            fmts = ["-k"]
 
             if show_experiment:
                 try:
                     # Assign x-axis, set origin to 0 and scale by pipette diameter
                     x_ = self.approach.dsdata["Z(um)"]
                     x_ = x_ - np.min(x_)
+                    if offset is None:
+                        offset = self.comsol.data["d (m)"].unique().min() * 1e6
+                    x_ += offset
                     x_ = x_ / (pipette_diameter * 1e-3)
                     x += [x_]
                     # Assign y-axis, scale by bulk value (robustly)
@@ -126,6 +136,7 @@ class ComsolModel(Model):
                     y += [y_]
                     # Add descriptive fields
                     legend += ["experiment"]
+                    fmts += ["-gray"]
                     if i == 0:
                         title = title + "\n" + \
                                 "Experiment: {} @ {}".format(self.approach.name, self.approach.date)
@@ -133,8 +144,14 @@ class ComsolModel(Model):
                     # Approach most likely not assigned, don't try.
                     pass
 
+            if add_unity_line:
+                x += [np.linspace(0, np.max(x[0]), 20)]
+                y += [np.ones_like(x[-1])]
+                fmts += [".whitesmoke"]
+                legend += ["unity line"]
+
             plots.plot_generic(x, y, x_lab, y_lab, legend = legend, ax = axs[i],
-                                fmts = ["-k", "-gray"])
+                                fmts = fmts)
         fig.suptitle(title, size = 12, y = 0.92)
 
         fpath = os.path.join(self.comsol.datadir, self.comsol.name)

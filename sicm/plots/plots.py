@@ -215,10 +215,10 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
             line = ax.plot(x, y, fmt)
         except ValueError as e:
             try: # allow grey colors in dirty way
-                line = ax.plot(x, y, linestyle = fmt[0], color = "gray")
+                line = ax.plot(x, y, linestyle = fmt[0], color = fmt[1:])
             except ValueError as e:
                 try:
-                    line = ax.plot(x, y, marker = fmt[0], color = "gray")
+                    line = ax.plot(x, y, marker = fmt[0], color = fmt[1:], linestyle = "None")
                 except Exception as e:
                     raise e
         ax.set_xlabel(x_lab)
