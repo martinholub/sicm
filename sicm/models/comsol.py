@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import pandas as pd
 import timeit
 from scipy.optimize import curve_fit
 
@@ -12,6 +13,29 @@ from sicm.sicm import Approach, ApproachList
 
 
 import matplotlib.pyplot as plt
+
+class ParametricSweepGenerator(object):
+    """Generate File to be Loaded As Parametric Sweep Parameters"""
+    def __init__(self, param_dict):
+        self.param_dict = param_dict
+
+    def parse_parameters(self):
+        """
+        Parameters
+        --------------
+        param_dict: dictionary
+            {name: values} pairs
+
+        References
+        ---------------
+        [1]  https://www.comsol.ch/forum/thread/attachment/340052/example-df96ce6.txt
+        """
+        # rUME rUME*range(0.9,0.2,2.1) [m]
+        # d "(rt*(10^(range(-2, 4.3/25,2.3)))+rUME)" [m]
+        # Tsub range(T0+3.5,0.5,T0+5) [K]
+        pass
+
+
 
 class ComsolData(object):
     """Data Exported from COMSOL"""
@@ -67,21 +91,23 @@ class ComsolModel(Model):
     def _select_variable(self, variable = None):
         """Select variable to plot grid for """
         if variable is not None:
-            return variable
+            return variable, None
         else:
             keys = list(self.comsol.data.keys())
             n_repeats = [len(self.comsol.data[k].unique()) for k in keys]
-            valid_keys  = [k for k, nr in zip(keys, n_repeats) if nr > 1 and k != "d (m)"]
-            return valid_keys[0]
+            valid_keys  = [k for k, nr in zip(keys, n_repeats) if nr > 0 and k != "d (m)"]
+            valid_keys = [k for k in valid_keys if k in ['rUME (m)', 'Tsub (K)']]
+            if len(valid_keys) == 1: valid_keys += [None]
+            return valid_keys[1], valid_keys[0]
 
     def plot_grid(self, pipette_diameter = 220, show_experiment = True, variable = None,
-                    col = 2, offset = 0, add_unity_line = False):
+                    col = 2, offset = 0, add_unity_line = False, window_size = 0):
         """Plot all numerical results on grid
 
         Displays result of numerically simulated approach at different temperatures.
         If experimental data avialable it is superimposed in all plots.
         """
-        var_name = self._select_variable(variable)
+        var_name, secondary_var_name = self._select_variable(variable)
         try:
             uniqs = self.comsol.data[var_name].unique()
         except KeyError as e:
@@ -99,34 +125,81 @@ class ComsolModel(Model):
                 sel = [True] * len(self.comsol.data)
             else:
                 sel = self.comsol.data[var_name] == var
-            y = np.abs(self.comsol.data[sel].iloc[:, col].values.flatten())
-            # scale y-axis by bulk current value
-            ## here it is the last one obtained
-            y = y / y[-1]
-            ## Plot just some data, for easier visualization
-            sel2 = y >= 0.97
-            y = [y[sel2]]
-            x = self.comsol.data["d (m)"][sel].values.flatten()[sel2]
-            # Scale x-axis by pipette diameter
-            x = [x / (pipette_diameter * 1e-9)]
 
-            if var_name.lower().startswith("t"):
-                txt = "T = {:.1f} K".format(var)
-            elif var_name.lower().startswith(("r")):
-                txt = r"$r_{{sub}}$={:.1f}$\mu m$".format(var * 1e6)
-            legend = [txt]
+
+            # TODO: Simplify treatmement of secondary variable, combine with simple
+            if secondary_var_name is not None:
+                # Attempt to visualize experiments with multiple variables
+                x = []
+                y = []
+                fmts_buff = [":y", ":g", ":r", ":b", ":m", ":c", ":gray", ":k"]
+                fmts = []
+                legend = []
+                uniqs_second = self.comsol.data[secondary_var_name].unique()
+                # Loop over subsets for whic the secondary variable is unique
+                for j, sec_var in enumerate(uniqs_second):
+                    sel_ = np.logical_and(self.comsol.data[secondary_var_name] == sec_var, sel)
+                    # De everything as if you are dealing with simple dataset
+                    y_sec = np.abs(self.comsol.data[sel_].iloc[:, col].values.flatten())
+                    y_sec = y_sec / y_sec[-1]
+                    sel2 = y_sec >= 0.97
+                    y_sec = [y_sec[sel2]]
+                    x_sec = self.comsol.data["d (m)"][sel_].values.flatten()[sel2]
+                    if offset is None:
+                        offset = self.comsol.data["d (m)"][sel].unique().min()
+                    x_sec -= offset
+                    x_sec = [x_sec / (pipette_diameter * 1e-9)]
+                    # Grow the list of items for plotting
+                    x += x_sec
+                    y += y_sec
+                    fmts += [fmts_buff[j]]
+
+                    if secondary_var_name.lower().startswith("t"):
+                        txt = "T = {:.2f} K".format(sec_var)
+                        ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
+                    elif secondary_var_name.lower().startswith(("r")):
+                        txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(sec_var * 1e6)
+                        ax_txt = "T = {:.2f} K".format(var)
+                    else:
+                        txt = ax_txt = None
+                    legend += [txt]
+
+
+            else:
+                y = np.abs(self.comsol.data[sel].iloc[:, col].values.flatten())
+                # scale y-axis by bulk current value
+                ## here it is the last one obtained
+                y = y / y[-1]
+                ## Plot just some data, for easier visualization
+                sel2 = y >= 0.97
+                y = [y[sel2]]
+                x = self.comsol.data["d (m)"][sel].values.flatten()[sel2]
+                # Determine offset from data.
+                # This will be wrong by couple of nm if |offset - rUME| ~ 0
+                if offset is None:
+                    offset = self.comsol.data["d (m)"][sel].unique().min()
+                x -= offset
+                # Scale x-axis by pipette diameter
+                x = [x / (pipette_diameter * 1e-9)]
+
+                if var_name.lower().startswith("t"):
+                    txt = "T = {:.1f} K".format(var)
+                elif var_name.lower().startswith(("r")):
+                    txt = r"$r_{{sub}}$={:.1f}$\mu m$".format(var * 1e6)
+                else:
+                    txt = None
+                ax_txt = None
+                legend = [txt]
+                fmts = ["-k"]
+
             y_lab = [r"$I/I_{bulk}$"]
             x_lab = [r"$z/d$"]
-            fmts = ["-k"]
 
             if show_experiment:
                 try:
                     # Assign x-axis, set origin to 0 and scale by pipette diameter
                     x_ = self.approach.dsdata["Z(um)"]
                     x_ = x_ - np.min(x_)
-                    if offset is None:
-                        offset = self.comsol.data["d (m)"].unique().min() * 1e6
-                    x_ += offset
                     x_ = x_ / (pipette_diameter * 1e-3)
                     x += [x_]
                     # Assign y-axis, scale by bulk value (robustly)
@@ -134,12 +207,28 @@ class ComsolModel(Model):
                     t_ = np.cumsum(self.approach.dsdata["dt(s)"])
                     y_ = y_ / np.quantile(y_[np.nonzero(t_ < 250e-3)[0]], 0.5)
                     y += [y_]
+
                     # Add descriptive fields
                     legend += ["experiment"]
                     fmts += ["-gray"]
                     if i == 0:
                         title = title + "\n" + \
                                 "Experiment: {} @ {}".format(self.approach.name, self.approach.date)
+
+                    # Implement moving Aaverage on experimental data
+                    if window_size > 1:
+                        y_temp = pd.Series(y[-1]).rolling(window = window_size).mean()
+                        y[-1] = y_temp.iloc[window_size-1:].values
+                        x[-1] = x[-1][window_size-1:]
+                        movav_txt = "exp., N = {:d}".format(window_size)
+                        legend[-1] = movav_txt
+
+                    # Send experimental data to the back for plotting
+                    x = x[::-1]
+                    y = y[::-1]
+                    fmts = fmts[::-1]
+                    legend = legend[::-1]
+
                 except Exception as e:
                     # Approach most likely not assigned, don't try.
                     pass
@@ -150,8 +239,9 @@ class ComsolModel(Model):
                 fmts += [".whitesmoke"]
                 legend += ["unity line"]
 
+
             plots.plot_generic(x, y, x_lab, y_lab, legend = legend, ax = axs[i],
-                                fmts = fmts)
+                                fmts = fmts, text = ax_txt, text_loc = (0.1, 0.9))
         fig.suptitle(title, size = 12, y = 0.92)
 
         fpath = os.path.join(self.comsol.datadir, self.comsol.name)
