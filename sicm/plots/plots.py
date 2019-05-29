@@ -14,6 +14,17 @@ from matplotlib.ticker import FormatStrFormatter
 from sicm import analysis
 from sicm.utils import utils
 
+def _set_rcparams():
+    plt.style.use("seaborn-white")
+    params = {  "font.family": "serif",
+                "font.weight": "normal",
+                "xtick.labelsize": 10,
+                "ytick.labelsize": 10,
+                "xtick.bottom": True,
+                "xtick.direction": "in",
+                "ytick.left": True,
+                "ytick.direction": "in"}
+    mpl.rcParams.update(params)
 
 def plot_mock(ax):
     """Render a mock plot"""
@@ -22,100 +33,94 @@ def plot_mock(ax):
             fontsize = "xx-large",
             verticalalignment="center", transform=ax.transAxes)
 
-def plot_sicm(result, sel, title = "SICM Plot", exp_name = None, date = "00/00/0000"):
+def _plot_mark_idxs(ax, x, y, idxs = None):
+    """Mark index in data on plot
+    """
+    if idxs is not None:
+        try:
+            ax.plot(x[idxs], y[idxs],
+                        color = "red", marker = ".", linestyle = "None",
+                        alpha = 0.25)
+        except Exception as e:
+            pass
+    else:
+        try:
+            ax.plot(x, y,
+                        color = "red", marker = ".", linestyle = "None",
+                        alpha = 0.25)
+        except Exception as e:
+            pass
+
+def _xylabel_getter(x_key, y_key):
+    """Repurpose X,Y variable names for axes labels"""
+    x_lab = x_key.replace("(", " [").replace(")", "]")
+    x_lab = re.sub(r'[0-9]+', '', x_lab)
+    y_lab = y_key.replace("(", " [").replace(")", "]")
+    y_lab = re.sub(r'[0-9]+', '', y_lab)
+
+    return x_lab, y_lab
+
+def _sicm_subplot(ax, data, sel, x_key, y_key, idxs = None):
+    """Render x,y selection from data"""
+    # Obtain label name from variable name
+    x_lab, y_lab = _xylabel_getter(x_key, y_key)
+    try:
+        # Mark idxs points
+        _plot_mark_idxs(ax, data[x_key], data[y_key], idxs)
+        ax.plot(data[x_key][sel], data[y_key][sel])
+        ax.set_xlabel(x_lab)
+        ax.set_ylabel(y_lab)
+    except KeyError as e:
+        plot_mock(ax)
+
+def plot_sicm(  result, sel, title = "SICM Plot", exp_name = None,
+                date = "00/00/0000", fname = None, idxs = None, dsdata = None):
     """Generic SICM plot"""
-
-    fig, axs = plt.subplots(nrows = 5, ncols = 2, figsize = (10, 20))
-    axs = axs.flatten()
-    title = title + "\n" + "{} @ {}".format(exp_name, date)
-    fig.suptitle(title, size = 18, y = 0.94)
-
+    # Check that data for plotting is ready
     if sel is None:
         try:
             sel = np.arange(0, len(result["LineNumber"]))
         except KeyError as e:
             sel = np.arange(0, len(next(iter(data.values()))))
+    elif idxs is not None:
+        raise NotImplementedError("plot_sicm: Cannot supply `idxs` and `sel` simultaneously.")
+
     if "time(s)" not in result.keys():
         result["time(s)"] = np.cumsum(result["dt(s)"])
 
-    try:
-        axs[0].plot(result["time(s)"][sel], result["V1(V)"][sel])
-        axs[0].set_xlabel("time [s]")
-        axs[0].set_ylabel("potential [V]")
-    except KeyError as e:
-        plot_mock(axs[0])
+    # Decide which keys to plot against which
+    x_keys = ["time(s)"]*2  + ["LineNumber", "time(s)"]*3 + ["X(um)", "time(s)"]
+    y_keys = ["V1(V)", "Current1(A)"] + ["Z(um)"]*2 + ["X(um)"]*2 + ["Y(um)"]*3 + ["LineNumber"]
+    assert len(x_keys) == len(y_keys)
 
-    try:
-        axs[1].plot(result["time(s)"][sel], result["Current1(A)"][sel])
-        axs[1].set_xlabel("time [s]")
-        axs[1].set_ylabel("current [A]")
-    except KeyError as e:
-        plot_mock(axs[1])
+    # Set-up Plotting
+    plt.style.use("seaborn-white")
+    nrows = int(np.ceil(len(x_keys)/2))
+    fig, axs = plt.subplots(nrows = nrows, ncols = 2, figsize = (10, 5 * nrows))
+    axs = axs.flatten()
+    title = title + "\n" + "{} @ {}".format(exp_name, date)
+    fig.suptitle(title, size = 18, y = 0.94)
 
-    try:
-        axs[2].plot(result["LineNumber"][sel], result["Z(um)"][sel])
-        axs[2].set_xlabel("LineNumber")
-        axs[2].set_ylabel("z [um]")
-    except KeyError as e:
-        plot_mock(axs[2])
+    # Render all plots
+    for i, ax in enumerate(axs):
+        _sicm_subplot(ax, result, sel, x_keys[i], y_keys[i], idxs)
 
-    try:
-        axs[3].plot(result["time(s)"][sel], result["Z(um)"][sel])
-        axs[3].set_xlabel("time [s]")
-        axs[3].set_ylabel("z [um]")
-    except KeyError as e:
-        plot_mock(axs[3])
-
-    try:
-        axs[4].plot(result["LineNumber"][sel],  result["X(um)"][sel])
-        axs[4].set_xlabel("LineNumber")
-        axs[4].set_ylabel("x [um]")
-    except KeyError as e:
-        plot_mock(axs[4])
-
-    try:
-        axs[5].plot(result["time(s)"][sel],  result["X(um)"][sel])
-        axs[5].set_xlabel("time [s]")
-        axs[5].set_ylabel("x [um]")
-    except KeyError as e:
-        plot_mock(axs[5])
-
-    try:
-        axs[6].plot(result["LineNumber"][sel],  result["Y(um)"][sel])
-        axs[6].set_xlabel("LineNumber")
-        axs[6].set_ylabel("y [um]")
-    except KeyError as e:
-        plot_mock(axs[6])
-
-    try:
-        axs[7].plot(result["time(s)"][sel],  result["Y(um)"][sel])
-        axs[7].set_xlabel("time [s]")
-        axs[7].set_ylabel("y [um]")
-    except KeyError as e:
-        plot_mock(axs[7])
-
-    try:
-        axs[8].plot(result["X(um)"][sel],  result["Y(um)"][sel])
-        axs[8].set_xlabel("x [um]")
-        axs[8].set_ylabel("y [um]")
-    except KeyError as e:
-        plot_mock(axs[8])
-
-    try:
-        axs[9].plot(result["time(s)"][sel],  result["LineNumber"][sel])
-        axs[9].set_xlabel("time [s]")
-        axs[9].set_ylabel("LineNumber")
-    except KeyError as e:
-        plot_mock(axs[9])
+    fname_lockin = None
+    if fname is not None:
+        utils.save_fig(fname)
+        fname_lockin = utils.make_fname(fname, "Lockin", ext = ".png")
 
     # Plot also results from lockin
     subkeys =  [("time(s)", "LockinPhase"), ("time(s)", "LockinAmplitude")]
     sel_keys = set([y for x in subkeys for y in x])
     subresult = {k:v[sel] for k,v in result.items() if k in sel_keys}
-    plot_lockin(subresult, subkeys, name = exp_name, date = date)
+    if dsdata is not None:
+        dsdata = {k:v for k,v in dsdata.items() if k in sel_keys}
+    plot_lockin(subresult, subkeys, name = exp_name, date = date, fname = fname_lockin,
+                idxs = idxs, dsdata = dsdata)
 
 def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None,
-                xlog = False):
+                fname = None, xlog = False, idxs = None, dsdata = None):
     """Plot data collected by lockin amplifier
 
     For description of variables and units, see [1].
@@ -149,7 +154,7 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
              "time(s)": "time [s]",
              "grid": "grid"}
 
-    plt.style.use("seaborn")
+    plt.style.use("seaborn-white")
     fig, axs = plt.subplots(nrows, ncols, squeeze = False,
                             figsize = (ncols*6.4, nrows*4.8))
     axs = axs.flatten()
@@ -166,26 +171,23 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
             axs[i].plot(data[k[0]], data[k[1]])
             axs[i].set_xlabel(labels[k[0]])
             axs[i].set_ylabel(labels[k[1]])
+
+            if dsdata is not None:
+                _plot_mark_idxs(axs[i], dsdata[k[0]], dsdata[k[1]])
+            else:
+                _plot_mark_idxs(axs[i], data[k[0]], data[k[1]], idxs)
+
             if xlog:
                 axs[i].set_xscale("log")
                 axs[i].set_xlabel("log " + labels[k[0]])
             # axs[i].set_title(" ".join(labels[k[1]].split(" ")[:-1]))
         except KeyError as e:
             plot_mock(axs[i])
+
+    if fname is not None:
+        utils.save_fig(fname)
+
     plt.show()
-
-def _set_rcparams():
-    plt.style.use("seaborn-white")
-    params = {  "font.family": "serif",
-                "font.weight": "normal",
-                "xtick.labelsize": 10,
-                "ytick.labelsize": 10,
-                "xtick.bottom": True,
-                "xtick.direction": "in",
-                "ytick.left": True,
-                "ytick.direction": "in"}
-    mpl.rcParams.update(params)
-
 
 def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = None,
                 ax = None, text = None, text_loc = (0.1, 0.1)):
@@ -243,7 +245,6 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
         utils.save_fig(fname)
     # recover plotting style
     mpl.rcParams.update(mpl.rcParamsDefault)
-
 
 def boxplot_generic(x, x_labs = None, y_lab = None, legend = None, fname = None):
     """Generic Boxplot function

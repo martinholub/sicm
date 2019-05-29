@@ -295,14 +295,46 @@ class Scan(Experiment):
         _, _ = hop.annotate_peaks(sel, window_size = window_size, save_dir = self.datadir,
                                     do_plot = True)
 
-    def plot_hopping_scan(self, sel = None):
+    def plot_hopping_scan(self, sel = None, mark_points = False, do_save = True):
         """Plot results of hopping scan
 
         If data is aquired with QTF setup, voltage and current are not available.
+
+        Parameters
+        -------------------
+        sel: array-like
+        mark_points: bool
+            Should the bottom points of each approach be labelled?
+        do_save: bool
         """
         exp_name  = self.name
         date = self.date
-        plots.plot_sicm(self.dsdata, sel, "Hopping Scan", exp_name, date)
+        plot_data = self._data
+
+        if mark_points: # Show lowest point of approach
+            if not self.is_it or not self.is_constant_distance:
+                desired_linenos = self.dsdata["LineNumber"].flatten()
+            else:
+                msg = "Marking Points can be done only for `scan` experiment-type."
+                raise NotImplementedError(msg)
+
+            all_linenos = plot_data["LineNumber"]
+            target_idx = []
+            for dl in desired_linenos:
+                # Take the last point of each approach from plot_data
+                target_idx.append(np.max(np.argwhere(all_linenos == dl)))
+            idxs = np.asarray(target_idx)
+        else:
+            idxs = None
+
+        # Saving data
+        if do_save:
+            fpath = self.get_fpath()
+            fname = utils.make_fname(fpath, "_sicmPlot", ext = ".png")
+        else:
+            fname = None
+
+        plots.plot_sicm(plot_data, sel, "Hopping Scan", exp_name, date, fname, idxs)
 
     def plot_hops(self, sel = None, do_save = True):
         """Plot approach curves
@@ -319,9 +351,7 @@ class Scan(Experiment):
         else:
             fpath = None
 
-        # TODO: This should be done elswhere!
-        self._data["time(s)"] = np.cumsum(self._data["dt(s)"])
-        hop = Hops(self._data, self.idxs, self.name, self.date)
+        hop = Hops(self._data, self._idxs, self.name, self.date)
         hop.plot(sel, fname = fpath, do_annotate = not self.is_it)
 
     def plot_approach(self, location = None):

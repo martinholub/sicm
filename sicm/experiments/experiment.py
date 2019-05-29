@@ -57,16 +57,19 @@ class Experiment(object):
                 guess_lineno_cnts = np.sort(cnts)[-3]
                 linenos = uniqs[np.argwhere(np.logical_and( cnts > guess_lineno_cnts*0.9,
                                                             cnts < guess_lineno_cnts*1.1))]
-                result, idxs = io.downsample_to_linenumber(data, linenos, "all")
+                result, idxs, _idxs = io.downsample_to_linenumber(data, linenos, "all")
             elif self.is_it:
                 linenos = np.arange(min(uniqs)+1, max(uniqs), 1)
-                result, idxs = io.downsample_to_linenumber(data, linenos, "all")
+                result, idxs, _idxs = io.downsample_to_linenumber(data, linenos, "all")
             else:
                 # hopping_scan
                 # Start with 2 to Include also the very first approach, to get complete data!
                 # Would need to take only correspondig part of datat
                 linenos = np.arange(2, max(uniqs), 3)
-                result, idxs = io.downsample_to_linenumber(data, linenos, which)
+                result, idxs, _idxs = io.downsample_to_linenumber(data, linenos, which)
+
+            # Index to raw data
+            self._idxs = _idxs
 
             dsdata = {k:v[idxs] for k,v in result.items()}
         except Exception as e:

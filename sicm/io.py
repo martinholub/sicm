@@ -73,19 +73,27 @@ def downsample_to_linenumber(result = {}, lineno = -1, which = "last"):
 
     assert "LineNumber" in result.keys()
     assert "dt(s)" in result.keys()
+
     tf = np.isin(result["LineNumber"], lineno)
     tf_diff = np.diff(tf.astype(np.int))
     idx = np.argwhere(tf) # Select all with this line number
-
+    # Return also index to raw data, if needed
+    idxs_ = []
     # Only last or fist element point of approach
     if which == "last":
         ret_idx = np.argwhere(tf_diff == -1)
+        for dl in lineno:
+            idxs_.append(np.max(np.argwhere(result["LineNumber"] == dl)))
     elif which == "first":
         ret_idx = np.argwhere(tf_diff == 1)
+        for dl in lineno:
+            idxs_.append(np.min(np.argwhere(result["LineNumber"] == dl)))
     else:
         ret_idx = idx # Select all with this line number
+        idxs_ = np.argwhere(np.isin(result["LineNumber"], lineno))
     # Get indices to the sub'idx'ed array
     ret_idx = np.nonzero(np.in1d(idx, ret_idx))[0]
+    if not isinstance(idxs_, (np.ndarray)): idxs_ = np.asarray(idxs_)
 
     for k,v in result.items():
         if k == "dt(s)":
@@ -94,7 +102,7 @@ def downsample_to_linenumber(result = {}, lineno = -1, which = "last"):
 
     print("Number of datapoints = {}".format(len(ret_idx)))
 
-    return(result_out, ret_idx)
+    return(result_out, ret_idx, idxs_)
 
 def load_data_lockin(folder = ".", fname = "", chunk = 0):
     """Load data exported by ZHInst LabOne

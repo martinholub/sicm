@@ -65,6 +65,9 @@ class Hops(object):
         name = self.name
         date = self.date
 
+        if "time(s)" not in data.keys():
+            data["time(s)"] = np.cumsum(data["dt(s)"])
+
         assert isinstance(xkey, (str, )), "xkey must be a string"
         assert xkey in data.keys(), "xkey must be in data"
 
