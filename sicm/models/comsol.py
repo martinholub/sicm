@@ -93,12 +93,15 @@ class ComsolModel(Model):
         if variable is not None:
             return variable, None
         else:
+
             keys = list(self.comsol.data.keys())
             n_repeats = [len(self.comsol.data[k].unique()) for k in keys]
             valid_keys  = [k for k, nr in zip(keys, n_repeats) if nr > 0 and k != "d (m)"]
             valid_keys = [k for k in valid_keys if k in ['rUME (m)', 'Tsub (K)']]
-            if len(valid_keys) == 1: valid_keys += [None]
-            return valid_keys[1], valid_keys[0]
+            if len(valid_keys) == 1:
+                return valid_keys[0], None
+            else:
+                return valid_keys[1], valid_keys[0]
 
     def plot_grid(self, pipette_diameter = 220, show_experiment = True, variable = None,
                     col = 2, offset = 0, add_unity_line = False, window_size = 0):
@@ -113,8 +116,13 @@ class ComsolModel(Model):
         except KeyError as e:
             uniqs = [None]
         nrows = np.int(np.ceil(len(uniqs) / 2))
-        fig, axs = plt.subplots(nrows = nrows, ncols = 2, figsize = (10, nrows * 4))
-        axs = axs.flatten()
+        ncols = 2 if len(uniqs) > 1 else 1
+        fig, axs = plt.subplots(nrows = nrows, ncols = ncols,
+                                figsize = (ncols * 5, nrows * 4))
+        try:
+            axs = axs.flatten()
+        except AttributeError as e:
+            axs = [axs]
 
         title = "Comsol Param Grid" + "\n" + \
                 "Model: {} @ {}".format(self.comsol.name, self.comsol.date)
@@ -163,7 +171,6 @@ class ComsolModel(Model):
                     else:
                         txt = ax_txt = None
                     legend += [txt]
-
 
             else:
                 y = np.abs(self.comsol.data[sel].iloc[:, col].values.flatten())
@@ -239,10 +246,9 @@ class ComsolModel(Model):
                 fmts += [".whitesmoke"]
                 legend += ["unity line"]
 
-
             plots.plot_generic(x, y, x_lab, y_lab, legend = legend, ax = axs[i],
-                                fmts = fmts, text = ax_txt, text_loc = (0.1, 0.9))
-        fig.suptitle(title, size = 12, y = 0.92)
+                                fmts = fmts, text = ax_txt, text_loc = (0.1, 0.90))
+        fig.suptitle(title, size = 10, y = 1.02 - nrows*0.02)
 
         fpath = os.path.join(self.comsol.datadir, self.comsol.name)
         utils.save_fig(fpath, self.comsol.date)

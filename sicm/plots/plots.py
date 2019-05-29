@@ -44,12 +44,13 @@ def _plot_mark_idxs(ax, x, y, idxs = None):
         except Exception as e:
             pass
     else:
-        try:
-            ax.plot(x, y,
-                        color = "red", marker = ".", linestyle = "None",
-                        alpha = 0.25)
-        except Exception as e:
-            pass
+        pass
+        # try:
+        #     ax.plot(x, y,
+        #                 color = "red", marker = ".", linestyle = "None",
+        #                 alpha = 0.25)
+        # except Exception as e:
+        #     pass
 
 def _xylabel_getter(x_key, y_key):
     """Repurpose X,Y variable names for axes labels"""
@@ -231,8 +232,9 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
     if legend is not None and legend != "":
         if not isinstance(legend, (list, tuple)): legend = [legend]
         legend = ['\n'.join(wrap(l, 21)) if not l.startswith("$") else l for l in legend]
+        ncol = 2 if len(legend) > 5 else 1
         ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
-                    borderaxespad = 1.1)
+                    borderaxespad = 1.1, ncol = ncol)
         # bbox_to_anchor=(1.01,1), loc="upper left" # if you need the legend outside
     elif len(Xs) > 1:
         plt.legend(range(len(Xs)))
@@ -285,7 +287,6 @@ def boxplot_generic(x, x_labs = None, y_lab = None, legend = None, fname = None)
         utils.save_fig(fname)
     # recover plotting style
     mpl.rcParams.update(mpl.rcParamsDefault)
-
 
 def errorplot_generic(  Xs, Ys, Y_errs, x_lab = None, y_lab = None, legend = None,
                             fname = None):
