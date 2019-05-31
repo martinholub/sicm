@@ -35,8 +35,6 @@ class ParametricSweepGenerator(object):
         # Tsub range(T0+3.5,0.5,T0+5) [K]
         pass
 
-
-
 class ComsolData(object):
     """Data Exported from COMSOL"""
     def __init__(self, datadir, exp_name):
@@ -97,14 +95,15 @@ class ComsolModel(Model):
             keys = list(self.comsol.data.keys())
             n_repeats = [len(self.comsol.data[k].unique()) for k in keys]
             valid_keys  = [k for k, nr in zip(keys, n_repeats) if nr > 0 and k != "d (m)"]
-            valid_keys = [k for k in valid_keys if k in ['rUME (m)', 'Tsub (K)']]
+            validator = ['rUME (m)', 'Tsub (K)', 'aspect', 'P_beam (W/m^2)']
+            valid_keys = [k for k in valid_keys if k in validator]
             if len(valid_keys) == 1:
                 return valid_keys[0], None
             else:
                 return valid_keys[1], valid_keys[0]
 
     def plot_grid(self, pipette_diameter = 220, show_experiment = True, variable = None,
-                    col = 2, offset = 0, add_unity_line = False, window_size = 0):
+                    col = 2, offset = 0, add_unity_line = False, window_size = 0, **kwargs):
         """Plot all numerical results on grid
 
         Displays result of numerically simulated approach at different temperatures.
@@ -133,7 +132,6 @@ class ComsolModel(Model):
                 sel = [True] * len(self.comsol.data)
             else:
                 sel = self.comsol.data[var_name] == var
-
 
             # TODO: Simplify treatmement of secondary variable, combine with simple
             if secondary_var_name is not None:
@@ -164,10 +162,41 @@ class ComsolModel(Model):
 
                     if secondary_var_name.lower().startswith("t"):
                         txt = "T = {:.2f} K".format(sec_var)
-                        ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
+                        if var > 1e-6:
+                            ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
+                        else:
+                            ax_txt = r"$r_{{sub}}$={:.0f}$nm$".format(var * 1e9)
+
                     elif secondary_var_name.lower().startswith(("r")):
-                        txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(sec_var * 1e6)
-                        ax_txt = "T = {:.2f} K".format(var)
+                        if sec_var > 1e-6:
+                            txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(sec_var * 1e6)
+                        else:
+                            txt = r"$r_{{sub}}$={:.0f}$nm$".format(sec_var * 1e9)
+
+                        if var_name.lower().startswith("t"):
+                            ax_txt = "T = {:.2f} K".format(var)
+                        elif var_name.lower().startswith("r"):
+                            ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
+                        elif var_name.lower().startswith("p"):
+                            ax_txt = "P = {:.2f} $W/cm^2$".format(var * 1e-4)
+                        else:
+                            ax_txt = None
+
+                    elif secondary_var_name.lower().startswith(("a")):
+                        txt = r"$AR={:.2f}$".format(sec_var)
+                        if var_name.lower().startswith("t"):
+                            ax_txt = "T = {:.2f} K".format(var)
+                        elif var_name.lower().startswith("r"):
+                            ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
+                        else:
+                            ax_txt = None
+                    elif secondary_var_name.lower().startswith(("p")):
+                        if var > 1e-6:
+                            ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
+                        else:
+                            ax_txt = r"$r_{{sub}}$={:.0f}$nm$".format(var * 1e9)
+
+                        ax_txt = "P = {:.2f} $mW/cm^2$".format(var * 1e-1)
                     else:
                         txt = ax_txt = None
                     legend += [txt]
@@ -240,14 +269,25 @@ class ComsolModel(Model):
                     # Approach most likely not assigned, don't try.
                     pass
 
-            if add_unity_line:
-                x += [np.linspace(0, np.max(x[0]), 20)]
-                y += [np.ones_like(x[-1])]
-                fmts += [".whitesmoke"]
-                legend += ["unity line"]
+            try:
+                if add_unity_line == "y":
+                    x_aux = [el1 for arr in x for el1 in arr]
+                    x += [np.linspace(0, np.max(x_aux), 20)]
+                    y += [np.ones_like(x[-1])]
+                    fmts += [".whitesmoke"]
+                    legend += ["unity line"]
+
+                elif add_unity_line == "x":
+                    y_aux = [el1 for arr in y for el1 in arr]
+                    y += [np.linspace(np.min(y_aux), np.max(y_aux), 20)]
+                    x += [np.ones_like(y[-1])]
+                    fmts += ["-whitesmoke"]
+                    legend += [r"$z/d=1$"]
+            except Exception as e:
+                pass # Do not add line
 
             plots.plot_generic(x, y, x_lab, y_lab, legend = legend, ax = axs[i],
-                                fmts = fmts, text = ax_txt, text_loc = (0.1, 0.90))
+                                fmts = fmts, text = ax_txt, **kwargs) #(0.1, 0.90)
         fig.suptitle(title, size = 10, y = 1.02 - nrows*0.02)
 
         fpath = os.path.join(self.comsol.datadir, self.comsol.name)

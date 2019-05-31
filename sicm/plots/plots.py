@@ -236,8 +236,8 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
         ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
                     borderaxespad = 1.1, ncol = ncol)
         # bbox_to_anchor=(1.01,1), loc="upper left" # if you need the legend outside
-    elif len(Xs) > 1:
-        plt.legend(range(len(Xs)))
+    # elif len(Xs) > 1:
+        # plt.legend(range(len(Xs)))
 
     if text is not None:
         ax.text(text_loc[0], text_loc[1], text, transform = ax.transAxes,

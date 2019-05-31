@@ -87,13 +87,19 @@ class Signal(object):
             ax.set_ylabel(r"$\theta$ [$\degree$]")
             ax.legend()
 
-    def plot(self, x_lab = "x", y_lab = "y", legend = None):
-        avg = np.mean(self.y)
-        std = np.std(self.y)
+    def plot(self, x_lab = "x", y_lab = "y", legend = None, **kwargs):
         fname = self.get_fpath()
-        if legend is None and legend != "":
-            legend = "$\mu$: {:.3E}\n$\sigma$: {:.3E}".format(avg, std)
-        plots.plot_generic([self.x], [self.y], [x_lab], [y_lab], legend, fname)
+        try:
+            avg = np.mean(self.y)
+            std = np.std(self.y)
+            if legend is None and legend != "":
+                legend = "$\mu$: {:.3E}\n$\sigma$: {:.3E}".format(avg, std)
+        except Exception as e:
+            pass
+
+        x_plot = self.x if isinstance(self.x, (list, )) else [self.x]
+        y_plot = self.y if isinstance(self.y, (list, )) else [self.y]
+        plots.plot_generic(x_plot, y_plot, [x_lab], [y_lab], legend, fname, **kwargs)
 
     def analyze(self, range = None, what = "noise", fpath = None):
         """Analyze data
