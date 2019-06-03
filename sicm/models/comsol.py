@@ -103,7 +103,8 @@ class ComsolModel(Model):
                 return valid_keys[1], valid_keys[0]
 
     def plot_grid(self, pipette_diameter = 220, show_experiment = True, variable = None,
-                    col = 2, offset = 0, add_unity_line = False, window_size = 0, **kwargs):
+                    col = 2, offset = 0, add_unity_line = False, window_size = 0,
+                    sup_text = None, **kwargs):
         """Plot all numerical results on grid
 
         Displays result of numerically simulated approach at different temperatures.
@@ -253,9 +254,18 @@ class ComsolModel(Model):
 
                     # Implement moving Aaverage on experimental data
                     if window_size > 1:
+                        ## opt1: Roll from beginning
+                        ## This is prefered because data is ordered far->close to surface
                         y_temp = pd.Series(y[-1]).rolling(window = window_size).mean()
+                        x_temp = x[-1]
+                        ## opt2 : Roll from end
+                        ### Implementing this makes things tiny-tiny bit worse.
+                        # y_temp = pd.Series(y[-1][::-1]).rolling(window = window_size).mean()
+                        # x_temp = x[-1][::-1]
+                        # Apply changes
                         y[-1] = y_temp.iloc[window_size-1:].values
-                        x[-1] = x[-1][window_size-1:]
+                        x[-1] = x_temp[window_size-1:]
+
                         movav_txt = "exp., N = {:d}".format(window_size)
                         legend[-1] = movav_txt
 
@@ -286,9 +296,18 @@ class ComsolModel(Model):
             except Exception as e:
                 pass # Do not add line
 
+
             plots.plot_generic(x, y, x_lab, y_lab, legend = legend, ax = axs[i],
                                 fmts = fmts, text = ax_txt, **kwargs) #(0.1, 0.90)
-        fig.suptitle(title, size = 10, y = 1.02 - nrows*0.02)
 
-        fpath = os.path.join(self.comsol.datadir, self.comsol.name)
-        utils.save_fig(fpath, self.comsol.date)
+        if sup_text is not None:
+            title += "\n" + sup_text
+
+        fig.suptitle(title, size = 10, y = 1.04 - nrows*0.02)
+
+        if sup_text is not None:
+            fpath = os.path.join(self.comsol.datadir, self.comsol.name)
+            utils.save_fig(fpath, sup_text + "_" + self.comsol.date)
+        else:
+            fpath = os.path.join(self.comsol.datadir, self.comsol.name)
+            utils.save_fig(fpath, self.comsol.date)

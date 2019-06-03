@@ -14,10 +14,24 @@ import matplotlib.pyplot as plt
 
 class GaussianBeam(Model):
     """Fit a gaussian beam model to an image of laser spot
+
+    Current implementation is not working because no raw_image available.
+    Also, the camera is sautrated!
+
+    Parameters
+    ---------
+    datadir: str
+        Path to directory containing the image.
+    exp_name: str
+        Name of the image. Should be in `.tiff` format!
+    is_debug: bool
+        Should diagnostic plots be displayed?
+
     """
 
-    def __init__(self, datadir, exp_name):
+    def __init__(self, datadir, exp_name, is_debug = False):
         self.img = self._load_image(datadir, exp_name)
+        self.is_debug = is_debug
         super(GaussianBeam, self).__init__()
 
     @property
@@ -27,6 +41,7 @@ class GaussianBeam(Model):
 
     @property
     def fwhm(self):
+        """Full Widht at Half Maximum"""
         try:
             val = self.popt[1] * np.sqrt(2 * np.log(2))
         except Exception as e: #popt not assigned yet
@@ -34,50 +49,146 @@ class GaussianBeam(Model):
         return val
 
     def _load_image(self, datadir, exp_name):
+        """Load Image as GrayScale values
+
+        TODO: Addapt this for raw tiffs once available
+        """
         self.data_dir = datadir
         self.exp_name = exp_name
         img = io.rgb2gray(io.load_image(datadir, exp_name))
         return img
 
     def _filt(self, size = 10):
+        """Filter the image with moving average filter
+
+        References
+        --------------
+        [1]  https://scikit-image.org/docs/dev/api/skimage.filters.rank.html#skimage.filters.rank.mean
+        """
         img_filt = rank.mean(self.img, square(size))
         return img_filt
 
     def thresh(self, filt_size = 10):
+        """Apply Otsu thresholding to obtain binary mask"""
         self.img_filt = self._filt(filt_size)
         thresh = threshold_otsu(self.img_filt)
         img_binary = self.img_filt > thresh
         self.img_binary = img_binary
 
     def fit_circle(self):
+        """Fit circle to binary image
+
+        This is naive approach, but works well for simple scenarios.
+        """
         try:
             data = self.img_binary
         except Exception as e:
             self.thresh()
             data = self.img_binary
         mask = np.nonzero(data)
-        y_c = np.int(np.mean(mask[0]))
-        x_c = np.int(np.mean(mask[1]))
+        self.y_c = np.int(np.mean(mask[0]))
+        self.x_c = np.int(np.mean(mask[1]))
 
-        fig, ax = plt.subplots(1, 1)
-        ax.imshow(data, origin = )
-        ax.plot(x_c, y_c, marker = "*", color = "red", markersize = 18,
-                mew = 4)
+        if self.is_debug:
+            fig, ax = plt.subplots(1, 1)
+            ax.imshow(data, origin = "upper")
+            ax.plot(self.x_c, self.y_c, marker = "*", color = "red",
+                    markersize = 18, mew = 4)
 
-    def _assign_extents(self, x_size, y_size):
-        """TODO: Continue Here"""
-        pass
+    def _assign_extents(self, x_extent, y_extent):
+        """Assing X,Y image extents
 
+        This basically yields pixel_size, assuming pixels are square. In future,
+        you can use this infromation to simplify your aproach.
+
+        Parameters
+        ----------
+        x_extent: float
+            Horizontal size of FOV in meters.
+        y_extent: float
+            Vertical size of FOV in meters.
+
+        Returns
+        ----------
+        x_ax: np.ndarray
+        y_ax: np.ndarray
+
+        """
+        len_x = self.img.shape[1]
+        len_y = self.img.shape[0]
+        is_matching =   ((len_y >= len_x) and (y_extent >= x_extent)) or \
+                        ((len_y < len_x) and (y_extent < x_extent))
+        assert is_matching, "Coordinate order is inverted! Please switch extents."
+
+        x_ax = np.linspace(0, x_extent, len_x)
+        y_ax = np.linspace(0, y_extent, len_y)
+        return x_ax, y_ax
+
+    def _shift_center(self, x_ax, y_ax):
+        """Shift Center of axis to center of fitted circle
+
+        TODO: Check that the cordinates match exactly (no +-1 offset)
+
+        Returns
+        ---------
+        x_ax, y_ax: np.ndarray
+            Axes in real-world coordinates, centered at circle center.
+        """
+        #x_ax = np.roll(x_ax, self.x_c)
+        x_ax = x_ax - x_ax[self.x_c]
+        # y_ax = np.roll(y_ax, self.y_c)
+        y_ax = y_ax - y_ax[self.y_c]
+        return x_ax, y_ax
 
     def _cart2pol(self, x, y):
+        """Convert Cartesian to polar"""
         rho = np.sqrt(x**2 + y**2)
         phi = np.arctan2(y, x)
         return(rho, phi)
 
-    def _pol2cart(self, rho, phi):
-        x = rho * np.cos(phi)
-        y = rho * np.sin(phi)
-        return(x, y)
+    def _convert_to_polar(self, x, y, signed = False):
+        """Convert cartesian cooridnates to polar
+
+        If signed, returns doublesided distribution.
+        """
+        xx, yy = np.meshgrid(x, y)
+        rho, phi = self._cart2pol(xx, yy)
+        if signed:
+            sign = np.sign(phi)
+            sign[sign == 0] = 1
+            return rho * sign
+        else:
+            return rho
+        return rho
+
+    def convert_to_polar(self, x_extent, y_extent, double_sided = False):
+        """Convert image coordinates to real-world polar representation
+
+        TODO: Offer possibility to trim data.
+
+        Parameters
+        ----------
+        x_extent: float
+            Horizontal size of FOV in meters.
+        y_extent: float
+            Vertical size of FOV in meters.
+        double_sided: bool
+            Return double-sided spectrum?
+        """
+        x_ax, y_ax = self._assign_extents(x_extent, y_extent)
+        x_ax, y_ax = self._shift_center(x_ax, y_ax)
+        self.rho_ax = self._convert_to_polar(x_ax, y_ax, double_sided)
+
+        if self.is_debug:
+            fig, ax = plt.subplots(1, 1)
+            ax.imshow(self.rho_ax)
+            ax.plot(self.x_c, self.y_c, marker = "*", color = "red",
+                    markersize = 18, mew = 4)
+
+        x = self.rho_ax.flatten()
+        y = self.img_filt.flatten()
+        self.x = x# x[x>2e-5]
+        self.y = y# y[x>2e-5]
 
     def _fit_wrapper(self):
         """"Fit convenience wrapper"""
@@ -91,10 +202,15 @@ class GaussianBeam(Model):
                 (M, N) or (M, N, 3) image data
             params: tuple of floats
                 Parameters of the model
+
+            References
+            ------------
+            [1]  https://www.rp-photonics.com/gaussian_beams.html
             """
             P, w0 = params
             y = (2 * P) / (np.pi * w0**2) * np.exp((-2 * x**2) / w0**2)
             return y
+
         return _gaussian_beam_model, guess
 
     def fit(self, *args, **kwargs):
@@ -110,5 +226,5 @@ class GaussianBeam(Model):
         """
         y = self.y
         x = self.x
-        plots.plot_generic( [x], [y], ["Driving Current [a.u.]"], ["Power [mw]"],
+        plots.plot_generic( [x], [y], ["Distance from center [m]"], ["Power [A.U.]"],
                             fname = fname)
