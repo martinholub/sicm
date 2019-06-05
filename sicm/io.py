@@ -182,7 +182,7 @@ def load_comsol(fname):
                 headline = list(filter(None, re.sub(rsub, "\t", headline).split("\t")))
                 # extremely dirty way how to deal with the fact that comsol has
                 # variable field separator.
-                unit = "(A)"
+                unit = headline[-1][-4:-1]
                 l_end = headline.pop()
                 headline.extend([l + unit for l in l_end.split(unit)[:-1]])
             vals = list(filter(None, re.sub("\s+", "\t", line).split("\t")))
@@ -192,7 +192,6 @@ def load_comsol(fname):
             Y.append(y)
             n_dpoints += 1
 
-
         X = np.asarray(X)
         Y = np.squeeze(np.asarray(Y).reshape((len(X), len(y))))
         try:
@@ -200,7 +199,6 @@ def load_comsol(fname):
         except ValueError as e: # all input arrays must have the same shape
             # occirs when mopre than one y
             XY = np.concatenate((X[:, np.newaxis], Y), axis = 1).T
-
         ret = {k: v for k,v in zip(headline, XY)}
         pd_ret = pd.DataFrame(ret)
 

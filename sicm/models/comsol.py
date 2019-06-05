@@ -11,7 +11,6 @@ from sicm.utils import utils
 from .model import Model
 from sicm.sicm import Approach, ApproachList
 
-
 import matplotlib.pyplot as plt
 
 class ParametricSweepGenerator(object):
@@ -47,7 +46,6 @@ class ComsolData(object):
         fpath = os.path.join(datadir, exp_name)
         data, date = io.load_comsol(fpath)
         return data, date
-
 
 class ComsolModel(Model):
     """Comsol Model of Thermometry
@@ -303,7 +301,7 @@ class ComsolModel(Model):
         if sup_text is not None:
             title += "\n" + sup_text
 
-        fig.suptitle(title, size = 10, y = 1.04 - nrows*0.02)
+        fig.suptitle(title, size = 10, y = 1.0 - nrows*0.02)
 
         if sup_text is not None:
             fpath = os.path.join(self.comsol.datadir, self.comsol.name)
