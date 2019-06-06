@@ -14,8 +14,12 @@ from matplotlib.ticker import FormatStrFormatter
 from sicm import analysis
 from sicm.utils import utils
 
-def _set_rcparams():
-    plt.style.use("seaborn-white")
+def _set_rcparams(ticks = False):
+    if ticks:
+        plt.style.use("seaborn-ticks")
+    else:
+        plt.style.use("seaborn-white")
+
     params = {  "font.family": "serif",
                 "font.weight": "normal",
                 "xtick.labelsize": 10,
@@ -191,14 +195,15 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
     plt.show()
 
 def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = None,
-                ax = None, text = None, text_loc = (0.1, 0.1)):
+                ax = None, text = None, text_loc = (0.1, 0.1), scale = None, ticks = False,
+                invert = None):
     """Generic ploting function
 
     This is an attempt of generic function that produces publication quality
     plots. Parameters have their usual meanings.
     """
     # set plotting style
-    _set_rcparams()
+    _set_rcparams(ticks)
 
     if fmts is None:
         fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."])
@@ -228,6 +233,14 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
         ax.set_ylabel(y_lab)
         if re.match("log( ?|\()", x_lab, re.IGNORECASE): ax.set_xscale("log")
         if re.match("log( ?|\()", y_lab, re.IGNORECASE): ax.set_yscale("log")
+
+        if scale is not None:
+            if scale == "loglog": ax.set_xscale("log"); ax.set_yscale("log")
+            if scale == "logx":  ax.set_xscale("log")
+            if scale == "logy": ax.set_yscale("log")
+        if invert is not None:
+            if "x" in invert.lower(): ax.invert_xaxis()
+            if "y" in invert.lower(): ax.invert_yaxis()
 
     if legend is not None and legend != "":
         if not isinstance(legend, (list, tuple)): legend = [legend]
