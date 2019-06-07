@@ -14,7 +14,10 @@ from .model import Model
 import matplotlib.pyplot as plt
 
 class AnalyticalModel(object):
-    """Analytical Model of Ion Current Through Pipette at Elevvated Temperature"""
+    """Analytical Model of Ion Current Through Pipette at Elevvated Temperature
+
+    This is a STUB, must be completed later.
+    """
     def __init__(self, c0 = 0.25, T = 298.15):
         self.c0 = c0 # Molar
         self.T0 = T0 # K
@@ -103,9 +106,10 @@ class HotSpotModel(object):
 
 class TemperatureModel(Model):
     """Model of current-distance-temperature dependence"""
-    def __init__(self, x, y, T, T0 = 298.15, r_sub = None, d_pipette = None):
+    def __init__(self, x, y, T, T0 = 298.15, T_sub = None, r_sub = None, d_pipette = None):
         self.T0 = T0 # Ambient T in K
         self.r_sub = r_sub # substrate size, relative to d_pipette
+        self.T_sub = T_sub
         self.d_pipette = d_pipette # pipette diam in m
         self.y = y # relative current
         self.x = x # relative distance from surface
@@ -163,27 +167,32 @@ class TemperatureModel(Model):
         msg = "Temperature must be passed as difference w.r.t bulk."
         if isinstance(value, (list, tuple)):
             if isinstance(value[0], (np.int, np.float)):
-                if len[value[0]] == 1:
-                    value = [self._model_temperature(v) for v in value]
-                else:
-                    assert np.max(value) < 100, msg
-                    value = [value]
+                value=[ self._model_temperature(v,x,r) for v,x,r in \
+                        zip(value, self.x, self.r_sub)]
+                assert np.max(value) < 100, msg
             elif isinstance(value[0], (list, tuple, np.ndarray)):
                 assert all([np.max(v) < 100 for v in value]), msg
         else:
             if isinstance(value, (np.int, np.float)):
-                value = [self._model_temperature(value)]
+                value = [self._model_temperature(value, self.x)]
         self._T =  value
 
-    def _model_temperature(self, T_sub):
+    @property
+    def T_sub(self):
+        """Temperature of the substrate"""
+        return self._T_sub
+    @T_sub.setter
+    def T_sub(self, value):
+        if value is None:
+            # Guess temperature of substrate from data
+            value = self.T0 + np.max(self.T)
+        self._T_sub = value
+
+    def _model_temperature(self, T_sub, x, r_sub = None):
         """Apply model of temperature"""
         T0 = self.T0
-        x = self.x
         try:
-            # First coordinate where we get temperature
-            # r_sub = np.asarray(self.r_sub) + np.min(x)
-            # TODO: The above approach is probably wrong!
-            raise NotImplementedError()
+            x += r_sub
         except Exception as e:
             r_sub = np.min(x)
 
@@ -203,11 +212,14 @@ class TemperatureModel(Model):
         legs = []
         fmts_buff = [":y", ":g", ":r", ":b", ":m", ":c", ":gray", ":k"]
         for x, y, T, r in zip(self.x, self.y, self.T, self.r_sub):
-            xx.append(y)
+            ## Can play tricks with scaling but not needed
             # K = self.T0 - 140.0
             # alpha = np.log10(y)
             # y_ = K * (alpha * K / T + alpha)
+            ## Plot dT vs I/I_bulk
+            xx.append(y)
             yy.append(T)
+
             leg = "$r_{{sub}}={:.2f} \cdot d_{{tip}}$".format(r)
             legs.append(leg)
         txt = "$T_{{sub}}={:.2f} K$" + "\n" + "$d_{{tip}}={:.0f}nm$"
@@ -215,12 +227,12 @@ class TemperatureModel(Model):
         # [r"$z/d$"], [r"$I \cdot (I_{bulk}\ \Delta T)^{-1}$"]
         plots.plot_generic( xx, yy, ["$I / I_{bulk}$"], ["$\Delta\ T$"],
                             legs, fname, scale = "", ticks = True,
-                            text = txt, text_loc = (0.1, 0.5), fmts = fmts_buff,
+                            text = txt, text_loc = (1.01, 0.9), fmts = fmts_buff,
                             invert = None)
 
     def _fit_wrapper(self):
         """"Fit convenience wrapper"""
-        guess = -1, 3
+        guess = [-1, 3] # guess of likely parameters
         def _linear_fit(x, *params):
             """Fit linear realtionship"""
             a, b = params
@@ -229,9 +241,12 @@ class TemperatureModel(Model):
         return _linear_fit, guess
 
 
-    def _find_elbow(self, x, y, is_debug = True):
+    def _find_elbow(self, x, y, is_debug = False):
+        """Depreceated, does not work optimally for required goal
+
+        Delet on next revision"""
         # https://dataplatform.cloud.ibm.com/analytics/notebooks/54d79c2a-f155-40ec-93ec-ed05b58afa39/view?access_token=6d8ec910cf2a1b3901c721fcb94638563cd646fe14400fecbb76cea6aaae2fb1
-                    # 2D coordinate
+        # 2D coordinate
         all_coords = np.vstack((x, y)).T
         # Vector between endpoints of line
         line_vec = all_coords[-1] - all_coords[0]
@@ -247,7 +262,6 @@ class TemperatureModel(Model):
         dist_to_line = np.sqrt(np.sum(vec_to_line ** 2, axis=1))
         # knee/elbow is the point with max distance value
         idx = np.argmax(dist_to_line)
-
         max_dist = dist_to_line[idx]
 
         if is_debug:
@@ -259,26 +273,52 @@ class TemperatureModel(Model):
             plt.show()
 
         # trim to straight line at return
-        return x[:idx], y[:idx], max_dist, idx
+        return idx, max_dist
 
+    def _shrink_line_iteratively(self, x, y, error = 5e-2, is_debug = True):
+        """Shrink line iteratively from its start"""
+        max_dist = np.inf
+        x_ = deepcopy(x)
+        y_ = deepcopy(y)
+        for i in range(np.int(1e3)):
+            # _, max_dist = self._find_elbow(x_, y_, is_debug)
+            weights = np.ones_like(x_)
+            popt, cov = np.polyfit(x_, y_, deg = 1, w = weights,
+                                           full = False, cov = True)
+            fit_err = np.sum(np.sqrt(np.diag(cov)))
+            # TODO: Punish error on proximal points more severly ???
+            # weights = np.arange(len(x_), 0, -1)
+            # fit_err = np.sum(np.sqrt(sing_values))
 
-    def _trim_to_quasilinear(self, x, y, max_dist_lim = 5e-2, is_debug = False):
+            if fit_err < error: break
+            x_ = x_[1:]
+            y_ = y_[1:]
+            if is_debug:
+                print("Error on fit = {}, popt = ({}).".format(fit_err, popt))
+        idx = len(x) - len(x_) - 1
+        return x_, y_ , idx
+
+    def _trim_to_quasilinear(self, x, y, error = 5e-2, is_debug = False):
         """Trim data such that they obey quasilinear relationship
 
-        TODO: Make max_dist_lim soemwhat depednent on data??
-        TODO: Check from which side you are trimming!!!
+        DEPRECEATED!
 
-        Parameters:
+        Parameters
+        --------------
         x: array-like
             Usually relative current, independent variable
         y: array-like
             Usually dT, dependent variable
         """
-        max_dist = 1
         # Iteratively remove data from close-to-surface end, until you have somewhat straight line
         # TODO: Check from which end are you removign the data!!!
-        while max_dist > max_dist_lim:
-            x, y, max_dist, idx = self._find_elbow(x, y, is_debug)
+        max_dist = 1
+        idx = 0
+        for i in range(100):
+            idx_, max_dist = self._find_elbow(x, y, is_debug)
+            if max_dist < error: break
+            x = x[idx_:]; y = y[idx_:]
+            idx += idx_
         return x, y, idx
 
     def _report_domain_of_validity(self, x, y, z, idx, is_debug = False):
@@ -288,20 +328,7 @@ class TemperatureModel(Model):
         msg = "Relative (z/d) Validity Threshold = {:.2f}".format(thresh)
         print(msg)
 
-        if is_debug:
-            # TODO: Play around with this plot to make sure it is correct!
-            plots._set_rcparams(ticks = True)
-            fig, axs = plt.subplots(1, 2, figsize = (8, 4))
-            axs = axs.flatten()
-            axs[0].plot(x, y, "-k")
-            axs[0].plot(x[idx], y[idx], "sr")
-
-            axs[1].plot(z, x/y, "-k")
-            axs[1].plot(z[idx], (x/y)[idx], "sr")
-            axs[1].set_xscale("log");
-
-
-    def _select_data(self, idx = 0):
+    def _select_data(self, idx = 0, err_lim = 5e-2):
         """Select Data for Fitting
 
         Parameters
@@ -311,42 +338,132 @@ class TemperatureModel(Model):
         Returns
         --------------
         x,y: array-like
-            independet, dependent variables
+            independent, dependent variables
         """
         if idx is not None:
-            # TODO: Check if inversion orders the data properly!
-            # Invert to go have dece=reasing separation from surface
-            x = self.y[idx][::-1] # relative current is input
-            y = self.T[idx][::-1] # temperature is output
-            z = self.x[idx][::-1] # z is relative distance from surface
+            # Pull out index and Impose "from->to surface" order
+            x = self.y[idx]# [::-1] # relative current is input
+            y = self.T[idx]# [::-1] # temperature is output
+            z = self.x[idx]# [::-1] # z is relative distance from surface
+            xx = deepcopy(x); yy = deepcopy(y)
+            x, y, thresh_idx = self._shrink_line_iteratively(x, y, err_lim)
+            # self._report_domain_of_validity(xx, yy, z, thresh_idx)
+            self.idx = [thresh_idx]
+            return [x], [y], [xx], [yy]
         else:
-            x = self.y[::-1]; y = self.T[::-1]; z = self.x[::-1]
+            x = []; y = []; xx = []; yy = []; idxs = []
+            for x_, y_, z_ in zip(self.y, self.T, self.x):
+                #x_ = x_[::-1]; y_ = y_[::-1]; z_ = z_[::-1]
+                xx.append(deepcopy(x)); yy.append(deepcopy(y))
+                x_, y_, thresh_idx = self._shrink_line_iteratively(x_, y_, err_lim)
+                # self._report_domain_of_validity(xx[-1], yy[-1], z_, thresh_idx)
+                x.append(x_); y.append(y_)
+                idxs.append(thresh_idx)
+            self.idx = idxs
+            return x, y, xx, yy
 
-        xx = deepcopy(x); yy = deepcopy(y)
-        x, y, thresh_idx = self._trim_to_quasilinear(x, y)
-        self._report_domain_of_validity(xx, yy, z, thresh_idx, True)
-        return x, y, xx, yy
-
-    def fit(self, guess = None, idx = None, double_ax = False):
+    def fit(self, guess = None, idx = None, double_ax = False, do_plot = False,
+            err_lim = 5e-2, verbose = False):
         fun, guess_ = self._fit_wrapper()
-        x, y, xx, yy = self._select_data(idx)
+        x_, y_, xx_, yy_ = self._select_data(idx, err_lim)
         if guess is None:
             guess = guess_
         #Solve non-linear lsq problem, yielding parama minimizing fun(x,*params)-y
         start_time = timeit.default_timer()
+        popts = []
+        for x, y, xx, yy in zip(x_, y_, xx_, yy_):
+            if verbose:
+                try:
+                    print(  "Fitting {} to {} datapoints ...".\
+                            format(fun.__qualname__.split(".")[-1], len(x)))
+                except AttributeError as e:
+                    print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
+
+            popt, _ = curve_fit(fun, x, y, p0 = guess, maxfev = np.int(1e6),
+                                method = "lm")
+            # polyfit works equaly well for simple problems
+            # popt = np.polyfit(x, y, 1)
+
+            end_time = timeit.default_timer()
+            if verbose:
+                print("Found parameters: {}.".format(popt))
+                print("Finished in {:.3f} s".format(end_time - start_time))
+            if do_plot:
+                self.popt = popt # need to assing here to make plot_fit work as elswhere
+                self.plot_fit(yy, xx, double_ax = double_ax)
+            popts.append(popt)
+        self.popt = popts # assign the proper fitted values
+
+    def check_fit(self, fname = None, plot_approach = False, **kwargs):
+        """Validate your approach"""
+        nrows = np.int(np.ceil(len(self.popt) / 2))
+        ncols = 2 if (len(self.popt) > 1) else 1
+        fig, axs = plt.subplots(nrows = nrows, ncols = ncols,
+                                figsize = (ncols * 5, nrows * 4))
         try:
-            print("Fitting {} to {} datapoints ...".format(fun.__qualname__, len(x)))
+            axs = axs.flatten()
         except AttributeError as e:
-            print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
+            axs = [axs]
+        for i, (x,y,z,p,idx) in \
+            enumerate(zip(self.y, self.T, self.x, self.popt, self.idx)):
+            # idx = len(x) - (idx + 1)
+            xx = []
+            yy = []
+            zz = []
+            legs = []
+            fmts = []
 
-        popt, _ = curve_fit(fun, x, y, p0 = guess, maxfev = np.int(1e6),
-                            method = "lm")
-        # polyfit works equaly well for simple problems
-        # popt = np.polyfit(x, y, 1)
+            # Data
+            xx.append(x[idx:])
+            yy.append(y[idx:])
+            zz.append(z[idx:])
+            legs += ["data (valid)"]
+            fmts += [":green"]
 
-        end_time = timeit.default_timer()
-        print("Found parameters: {}.".format(popt))
-        print("Finished in {:.3f} s".format(end_time - start_time))
-        self.popt = popt
+            xx.append(x[0:idx+1])
+            yy.append(y[0:idx+1])
+            zz.append(z[0:idx+1])
+            legs += ["data (invalid)"]
+            fmts += [":y"]
 
-        self.plot_fit(yy, xx, double_ax = double_ax)
+            # Fit
+            if not plot_approach:
+                xx.append(x[idx:])
+                yy.append(x[idx:] * p[0] + p[1])
+                zz.append(np.ones_like(x[idx:]))
+                legs.append("fit")
+                fmts.append("-whitesmoke")
+
+            # Limiting point
+            xx.append(np.asarray(x[idx]))
+            yy.append(np.asarray(y[idx]))
+            zz.append(np.asarray(z[idx]))
+            legs += ["valid. limit"]
+            fmts += ["^red"]
+
+            x_lab = ["$I / I_{bulk}$"]
+            y_lab = ["$\Delta\ T$"] if not plot_approach else [r"$z/d$"]
+            txt = r"$r_{{sub}}={:.2f} \cdot d_{{tip}}$"
+            txt += "\n" + r"$\frac{{z}}{{d}}|_{{lim}} = {:.2f}$"
+            txt = txt.format(self.r_sub[i], z[idx])
+            txt += r", $I_{{rel}}^{{lim}} = {:.2f}$".format(x[idx])
+            if not plot_approach:
+                sign = "+" if p[1] > 0 else ""
+                txt += "\n" + r"$y = {:.2f} x {} {:.2f}$".format(p[0], sign, p[1])
+
+            Y = yy if not plot_approach else zz
+            scale = None if not plot_approach else "logy"
+            invert = None if not plot_approach else "y"
+
+            plots.plot_generic(xx, Y, x_lab, y_lab, legend = legs, ax = axs[i],
+                                fmts = fmts, text = txt,
+                                scale = scale, invert = invert, **kwargs) #(0.1, 0.90)
+
+        title = "$T_{{sub}} = {:.2f} K$".format(self.T_sub) + "\n" + \
+                "$d_{{pipette}} = {:.0f} nm$".format(self.d_pipette * 1e9)
+
+        fig.suptitle(title, size = 10, y = 1.0 - nrows*0.02)
+
+        suffix = "" if not plot_approach else "_app"
+        if fname is not None:
+            utils.save_fig(fname, suffix, ".png")

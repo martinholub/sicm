@@ -217,7 +217,7 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
     if ax is None:
         fig = plt.figure(figsize = (4.5, 4.5))
         ax = fig.add_subplot(1, 1, 1)
-    fmts = fmts[0:len(Xs[0])]
+        
     for x, y, x_lab, y_lab, fmt in zip(Xs, Ys, x_labs, y_labs, fmts):
         try:
             line = ax.plot(x, y, fmt)
