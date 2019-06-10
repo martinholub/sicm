@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import timeit
 from scipy.optimize import curve_fit
+from itertools import product
 
 
 from sicm import io
@@ -137,7 +138,8 @@ class ComsolModel(Model):
                 # Attempt to visualize experiments with multiple variables
                 x = []
                 y = []
-                fmts_buff = [":y", ":g", ":r", ":b", ":m", ":c", ":gray", ":k"]
+                fmts_prod = product([":", "--", "-."], list("ygrbmck"))
+                fmts_buff = ["".join(x) for x in fmts_prod]
                 fmts = []
                 legend = []
                 uniqs_second = self.comsol.data[secondary_var_name].unique()
@@ -157,7 +159,10 @@ class ComsolModel(Model):
                     # Grow the list of items for plotting
                     x += x_sec
                     y += y_sec
-                    fmts += [fmts_buff[j]]
+                    try:
+                        fmts += [fmts_buff[j]]
+                    except Exception as e:
+                        import pdb; pdb.set_trace()
 
                     if secondary_var_name.lower().startswith("t"):
                         txt = "T = {:.2f} K".format(sec_var)

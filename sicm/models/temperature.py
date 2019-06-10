@@ -280,15 +280,19 @@ class TemperatureModel(Model):
         max_dist = np.inf
         x_ = deepcopy(x)
         y_ = deepcopy(y)
+        weights_ = np.arange(len(x_), 0, -1) / len(x_)
         for i in range(np.int(1e3)):
             # _, max_dist = self._find_elbow(x_, y_, is_debug)
             weights = np.ones_like(x_)
-            popt, cov = np.polyfit(x_, y_, deg = 1, w = weights,
-                                           full = False, cov = True)
-            fit_err = np.sum(np.sqrt(np.diag(cov)))
+
+            popt, fit_err, _, _, _ = np.polyfit(x_, y_, deg = 1, w = weights,
+                                                full = True, cov = False)
+
             # TODO: Punish error on proximal points more severly ???
-            # weights = np.arange(len(x_), 0, -1)
-            # fit_err = np.sum(np.sqrt(sing_values))
+            w = weights_[:len(x_)]
+            fit_err = np.sum((np.power(w * (popt[0]*x_ + popt[1] - y_), 2)))
+            # fit_err = np.sum(np.sqrt(np.diag(cov)))
+
 
             if fit_err < error: break
             x_ = x_[1:]

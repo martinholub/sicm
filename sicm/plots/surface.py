@@ -35,7 +35,7 @@ def make_colorbar(fig, cmap, levels, cmin, cmax):
     sm.set_array([])
     # setting boundaries clips off colorbar extends that are not in current lelves
     cbar = fig.colorbar(sm, ticks = levels,
-                        format = "%.3f", drawedges = False)
+                        format = "%.3e", drawedges = False)
     return cbar
 
 def _make_mask(x, y, x_range, y_range):
@@ -308,7 +308,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
             if any(cl is None for cl in cbar_lims):
                 # Option 2: Variable colorbar, but better contrast for each slice
                 conts = plot_contour(ax, x, y, z)
-                cbar = fig.colorbar(conts, ticks = conts.levels, format = "%.3f", drawedges = False)
+                cbar = fig.colorbar(conts, ticks = conts.levels, format = "%.3e", drawedges = False)
                 # cbar.set_clim(*cbar_lims) # this appears not helpful
             else:
                 # Option 1: Same colorbar for all slices
