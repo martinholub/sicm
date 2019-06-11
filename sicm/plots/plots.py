@@ -194,9 +194,9 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
 
     plt.show()
 
-def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = None,
+def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = None, fmts = None,
                 ax = None, text = None, text_loc = (0.1, 0.1), scale = None, ticks = False,
-                invert = None):
+                invert = None, **kwargs):
     """Generic ploting function
 
     This is an attempt of generic function that produces publication quality
@@ -217,16 +217,16 @@ def plot_generic(Xs, Ys, x_labs, y_labs, legend = None, fname = None, fmts = Non
     if ax is None:
         fig = plt.figure(figsize = (4.5, 4.5))
         ax = fig.add_subplot(1, 1, 1)
-        
+
     for x, y, x_lab, y_lab, fmt in zip(Xs, Ys, x_labs, y_labs, fmts):
         try:
-            line = ax.plot(x, y, fmt)
+            line = ax.plot(x, y, fmt, **kwargs)
         except ValueError as e:
             try: # allow grey colors in dirty way
-                line = ax.plot(x, y, linestyle = fmt[0], color = fmt[1:])
+                line = ax.plot(x, y, linestyle = fmt[0], color = fmt[1:], **kwargs)
             except ValueError as e:
                 try:
-                    line = ax.plot(x, y, marker = fmt[0], color = fmt[1:], linestyle = "None")
+                    line = ax.plot(x, y, marker = fmt[0], color = fmt[1:], linestyle = "None", **kwargs)
                 except Exception as e:
                     raise e
         ax.set_xlabel(x_lab)

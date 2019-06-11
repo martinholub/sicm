@@ -8,7 +8,7 @@ from matplotlib.ticker import FormatStrFormatter
 from sicm import analysis
 from sicm.utils import utils
 
-def make_colorbar(fig, cmap, levels, cmin, cmax):
+def make_colorbar(fig, cmap, fmt, levels, cmin, cmax):
     """Make nice colorbar
 
     Parameters
@@ -35,7 +35,7 @@ def make_colorbar(fig, cmap, levels, cmin, cmax):
     sm.set_array([])
     # setting boundaries clips off colorbar extends that are not in current lelves
     cbar = fig.colorbar(sm, ticks = levels,
-                        format = "%.3e", drawedges = False)
+                        format = fmt, drawedges = False)
     return cbar
 
 def _make_mask(x, y, x_range, y_range):
@@ -305,10 +305,11 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
         raise NotImplementedError("Sparse measurements not implemented!")
     else:
         with plt.style.context("seaborn-ticks"):
+            fmt = "%.2e" if (np.max(np.abs(z)) < 1e-3 or np.min(np.abs(z)) > 1e3) else "%.2f"
             if any(cl is None for cl in cbar_lims):
                 # Option 2: Variable colorbar, but better contrast for each slice
                 conts = plot_contour(ax, x, y, z)
-                cbar = fig.colorbar(conts, ticks = conts.levels, format = "%.3e", drawedges = False)
+                cbar = fig.colorbar(conts, ticks = conts.levels, format = fmt, drawedges = False)
                 # cbar.set_clim(*cbar_lims) # this appears not helpful
             else:
                 # Option 1: Same colorbar for all slices
@@ -320,7 +321,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
                 norm = mpl.colors.Normalize(vmin = cbar_lims[0], vmax = cbar_lims[1], clip = True)
                 conts = plot_contour(ax, x, y, z, norm = norm, levels = levels_conts,
                                     z_aux = z_aux)
-                cbar = make_colorbar(fig, conts.cmap, levels_cbar, *cbar_lims)
+                cbar = make_colorbar(fig, conts.cmap, fmt, levels_cbar, *cbar_lims)
 
     cbar.ax.set_ylabel(z_lab)
 

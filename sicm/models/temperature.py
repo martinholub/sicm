@@ -10,6 +10,7 @@ from sicm import io
 from sicm.plots import plots
 from sicm.utils import utils
 from .model import Model
+from sicm.mathops import mathops
 
 import matplotlib.pyplot as plt
 
@@ -103,6 +104,134 @@ class TemperatureBulkModel(object):
 class HotSpotModel(object):
     def __init__(self):
         pass
+
+class TemperatureModelArray(object):
+    def __init__(self, adata, tdata, r_subs, Ts, d_pipette, T0, datadir, name, coln = 3):
+        self.T0 = T0
+        self.d_pipette = d_pipette
+        self.r_sub = r_subs
+        self.T_sub = Ts
+        self.fpath = os.path.join(datadir, name)
+        self.model_array = []
+        self._build_model_array(adata, tdata, r_subs, Ts, T0, d_pipette, coln)
+
+    def _scale_by_bulk(self, x, y, dT, allow_adjust = True):
+        if any(dT < -0.1): raise Exception("Decreasing Temperature!")
+
+        if np.min(dT) > 0.1 and allow_adjust:
+            sel = x > 2.
+            scaler = mathops.find_bulk_val(x[sel], y[sel])
+        else:
+            scaler = y[-1]
+        return y / scaler
+
+
+    def _build_model_array(self, adata, tdata, r_subs, Ts, T0, d_pipette, coln = 3):
+        model_array = []
+        for t in Ts:
+            xx = [] ; yy = []; TT = []
+            for r in r_subs:
+                # Temperature
+                dsub2 = tdata[(tdata["Tsub (K)"] == t) & (tdata["rUME (m)"] == r)]
+                col_sel = [col for col in dsub2 if col.startswith("Temperature (K)")]
+                dT = dsub2[col_sel].values.flatten() - T0
+                TT.append(dT)
+
+                # X-Axis
+                dsub = adata[(adata["Tsub (K)"] == t) & (adata["rUME (m)"] == r)]
+                x = dsub["d (m)"].values / d_pipette
+                xx.append(x)
+                # Y-AXIS
+                y = dsub.iloc[:, coln].values
+                y = self._scale_by_bulk(x, y, dT, allow_adjust = True)
+                yy.append( y)
+
+            # Asign instance of Temperature model
+            tm = TemperatureModel(xx, yy, TT, T0, t, r_subs/d_pipette, d_pipette)
+            self.model_array.append(tm)
+
+    def plot_overview(self):
+        for m in self.model_array:
+            suffix = "_T{:.2f}K_d{:.0f}nm".format(m.T_sub, self.d_pipette*1e9)
+            fname = utils.make_fname(self.fpath, suffix.replace(".", "p"))
+            m.plot(fname = fname)
+
+    def plot_check(self, plot_approach = False, **kwargs):
+        try:
+            for i, m in enumerate(self.model_array):
+                suffix = "_T{:.2f}K_d{:.0f}nm_Fit".format(m.T_sub, self.d_pipette*1e9)
+                fname = utils.make_fname(self.fpath, suffix.replace(".", "p"))
+                m.check_fit(fname, plot_approach, **kwargs)
+        except Exception as e:
+            print("Model must be fitted before check-plotting!")
+            raise e
+
+    def fit(self, err_lim = 2e-1):
+        if not isinstance(err_lim, (list, tuple, np.ndarray)): err_lim = [err_lim]
+        if len(err_lim) != len(self.model_array): err_lim = err_lim * len(self.model_array)
+        self.popts = {}
+        self.lims = {}
+        for i, m in enumerate(self.model_array):
+            m.fit(err_lim = err_lim[i])
+            lims = np.asarray([x[i] for i, x in zip(m.idx, m.x)])
+            self.popts["{:.2f}".format(m.T_sub)] = m.popt
+            self.lims["{:.2f}".format(m.T_sub)] = lims
+
+    def extract_valid_fit(self, do_plot = True):
+        if do_plot:
+            fig, ax = plt.subplots(1, 1, figsize = (4, 4))
+            cs = ["c", "g", "whitesmoke", "y", "b", "pink", "m", "brown", "teal", "skyblue",
+                 "k", "darkgray", "indigo"]
+            fmts = ["-" + c for c in cs]
+
+        x_ax = np.linspace(1, 1.3, 25)
+        a = []; b = []
+        info_dict = {}
+        summary = {"good": [], "bad": []}
+        lims_good = []
+        for j, (k, super_v) in enumerate(self.popts.items()): # loop over temperatures
+            xs = []; ys = []
+            info_dict[k] = {"bad": [], "good": []}
+            for i, p in enumerate(super_v): # loop over r_sub
+                y = p[0] * x_ax + p[1] # compute value of the fit
+
+                # Report validity of the fit
+                v1 = self.r_sub[i] / self.d_pipette
+                v2 = self.lims[k][i]
+                info = {"rSUB/dTIP": "{:.2f}".format(v1), "z/d LIM": "{:.2f}".format(v2)}
+                ## Mark data where we do not start @ 0 as bad.
+                if y[0] > 0.25:
+                    info_dict[k]["bad"].append(info)
+                    summary["bad"].append((k, "{:.2f}".format(v1), "{:.2f}".format(v2)))
+                    continue
+                else:
+                    info_dict[k]["good"].append(info)
+                    summary["good"].append((k, "{:.2f}".format(v1), "{:.2f}".format(v2)))
+                    lims_good.append(v2)
+
+                a.append(p[0]); b.append(p[1])
+                xs.append(x_ax); ys.append(y)
+
+            if do_plot:
+                plots.plot_generic(xs, ys, ["$I / I_{bulk}$"], ["$\Delta\ T$"],
+                                fmts = fmts, linewidth = 0.5, alpha = 0.15, ax = ax)
+
+        txt = "y = x*{:.4f} + {:.4f}".format(np.mean(a), np.mean(b))
+        txt += "; stds: ({:.4f}, {:.4f})".format(np.std(a), np.std(b))
+        txt += "\nz/d LIM = {:.4f}; (std = {:.4f})".format(np.mean(lims_good), np.std(lims_good))
+        print(txt)
+        info_dict["summary"] = summary
+        info_dict["fit"] = {"coeff (mean)": (np.mean(a), np.mean(b)),
+                            "coeff (std)": (np.std(a), np.std(b))}
+        if do_plot:
+            # Compute valid fit
+            y = np.mean(a) * x_ax + np.mean(b)
+            ax.plot(x_ax, y, alpha = 0.75, color = "red", linewidth = 2)
+            txt = r"$n = {:d}$".format(len(summary["good"]))
+            ax.text(0.75, 0.1, txt, transform = ax.transAxes, color = "black")
+        # Save dictionary
+        fname = utils.make_fname(self.fpath, "_Annotation", ".json")
+        utils.save_dict(info_dict, fname)
 
 class TemperatureModel(Model):
     """Model of current-distance-temperature dependence"""
@@ -275,7 +404,7 @@ class TemperatureModel(Model):
         # trim to straight line at return
         return idx, max_dist
 
-    def _shrink_line_iteratively(self, x, y, error = 5e-2, is_debug = True):
+    def _shrink_line_iteratively(self, x, y, error = 5e-2, is_debug = False):
         """Shrink line iteratively from its start"""
         max_dist = np.inf
         x_ = deepcopy(x)
@@ -297,8 +426,8 @@ class TemperatureModel(Model):
             if fit_err < error: break
             x_ = x_[1:]
             y_ = y_[1:]
-            if is_debug:
-                print("Error on fit = {}, popt = ({}).".format(fit_err, popt))
+        if is_debug:
+            print("Error on fit = {}, popt = ({}).".format(fit_err, popt))
         idx = len(x) - len(x_) - 1
         return x_, y_ , idx
 

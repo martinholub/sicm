@@ -11,6 +11,7 @@ from sicm.utils import utils
 from sicm.io import downsample_to_linenumber
 from .experiment import Experiment
 from ..measurements.hops import Hops
+from sicm.mathops.conversion import convert_measurements
 
 class Scan(Experiment):
     """SCAN Object
@@ -31,12 +32,13 @@ class Scan(Experiment):
         Type of scan. ("scan", "it")
     """
     def __init__(   self, datadir, exp_name, y_trim = None, x_trim = None,
-                    do_correct = False, scan_type = "scan"):
+                    do_correct = False, convert = False, scan_type = "scan"):
         super(Scan, self).__init__(datadir, exp_name, scan_type)
         self.dsdata = self._trim_data(self.dsdata, x_trim, y_trim)
         self.dsdata = self._correct_dsdata(do_correct)
         self.x_trim = x_trim
         self.y_trim = y_trim
+        self.convert = convert
         self._report_xy_extents()
 
     def _trim_data(self, data, x_trim, y_trim):
@@ -561,8 +563,14 @@ class Scan(Experiment):
                 v_all = v_all / scaler
 
                 ## Preserve surface values, just for interest
-                v_surf = np.asarray([v_down[-1], v_up[1]])
-                v_surfs[i, k] = np.mean(v_surf) / scaler
+                v_surf = np.mean(np.asarray([v_down[-1], v_up[1]])) / scaler
+
+                ## Apply conversion if asked for
+                if self.convert:
+                    v_all = convert_measurements(v_all)
+                    v_surf = convert_measurements(v_surf)
+
+                v_surfs[i, k] = v_surf
 
                 for j, szl in enumerate(slices_z_locs):
                     z = z_axs[i]
@@ -603,6 +611,7 @@ class Scan(Experiment):
                 val = val_
                 params_adj = {}
 
+            if self.convert: label = r"$\Delta T$"
             # Make colorbar extents common to all slices for given key
 
             cbar_lims_stds  = (np.nanmin(val_stds), np.nanmax(val_stds))

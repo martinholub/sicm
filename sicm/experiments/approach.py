@@ -9,26 +9,69 @@ from sicm.plots import plots
 from sicm.utils import utils
 from .experiment import Experiment, ExperimentList
 from ..measurements.signal import Signal
+from sicm.mathops.conversion import convert_measurements
+from sicm.mathops import mathops
 
 class Approach(Experiment):
-    def __init__(self, datadir, exp_name):
+    def __init__(self, datadir, exp_name, d_pipette = None, startid = 0):
+        self.d_pipette = d_pipette
+        self.startid = startid
         super(Approach, self).__init__(datadir, exp_name, etype = "approach")
 
-    def plot(self, sel = None, what = "generic"):
+    def get_xy_data(self, dname = "dsdata", keys = {"x": "Z(um)",
+                    "y": "Current1(A)"}, convert = False, scale = False,
+                    window_size = 0, bulk_adjust = False):
+        """ Obtain typical approach data
+        Apply processing and transformations as requested
+        """
+        data = getattr(self, dname)
+        x = data[keys["x"]]
+        x = x - np.min(x)
+
+        try:
+            x = (x * 1e-6) / (self.d_pipette )
+        except Exception as e:
+            pass
+
+        y = data[keys["y"]]
+        x, y = mathops.rolling_mean(x, y, window_size)
+        if scale:
+            if bulk_adjust:
+                sel = x > 2.
+                scaler = mathops.find_bulk_val(x[sel], y[sel])
+            else:
+                try:
+                    scaler = y[self.startid]
+                except Exception as e:
+                    scaler = y[-1]
+            y = y / scaler
+            if convert: # apply conversion
+                y = convert_measurements(y)
+        else:
+            y *= 1e9 # convert to nanoamps
+        return x, y
+
+    def _get_ylab(self, convert, scale):
+        y_lab = r"$I_{norm}\ [-]$" if scale else r"$I\ [nA]$"
+        y_lab = r"$\Delta T\ [K]$" if convert else y_lab
+        return y_lab
+
+
+    def plot(self, sel = None, what = "generic", **kwargs):
         """Simple wrapper for plotting
         """
         if what.lower().startswith("sicm"):
             plots.plot_sicm(self.dsdata, sel, "Approach", self.name, self.date)
         else:
-            # consider calling plot_generic directly
-            z_ax = self.dsdata["Z(um)"]
-            z_ax = z_ax - np.min(z_ax)
-            y_ax = self.dsdata["Current1(A)"]*1e9
+            z_ax, y_ax  = self.get_xy_data(**kwargs)
+            y_lab = self._get_ylab(kwargs["convert"], kwargs["scale"])
             if sel is None:
                 sel = [True] * len(z_ax)
 
+            # consider calling plot_generic directly
             sig = Signal(z_ax[sel], y_ax[sel], self.datadir, self.name)
-            sig.plot("Z [um]", "Current [nA]", legend = "")
+            sig.plot("$Z\ [um]$", y_lab, legend = "")
+
 
 class ApproachList(ExperimentList):
     """Construct List of Approach Objects

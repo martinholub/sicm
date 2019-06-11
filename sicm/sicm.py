@@ -6,7 +6,6 @@ from sicm.experiments.scan import Scan
 from sicm.experiments.lockin import LockIn
 from sicm.experiments.cv import CV
 
-
 # from sicm.experiments import LockIn, CV # lot of work left to be done here
 
 

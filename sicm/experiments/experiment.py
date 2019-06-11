@@ -1,7 +1,10 @@
 import numpy as np
 from sicm import io
 from os import path
+import os
 from copy import deepcopy
+
+from sicm.utils import utils
 
 class Experiment(object):
     """Base class for all experiments

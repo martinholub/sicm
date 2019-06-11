@@ -60,3 +60,7 @@ def save_dict(d, fname):
     # fname = make_fname(fname, suffix = "", ext = ".json", subdirname = "")
     with open(fname, "w") as wd:
         json.dump(d, wd, indent = 4, sort_keys = True)
+def load_dict(fname):
+    with open(fname, "r") as rd:
+        d = json.load(rd)
+    return d

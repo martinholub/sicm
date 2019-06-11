@@ -5,6 +5,7 @@ from sicm.utils import utils
 import numpy as np
 import timeit
 from scipy.optimize import curve_fit
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 
@@ -86,28 +87,41 @@ class Model(object):
         # utils.save_fig(text)
         plt.show()
 
-    def _fit(self, guess = None, double_ax = True):
+    def fit(self, guess = None, double_ax = False, verbose = True, do_plot = True, **kwargs):
+        """Fit a function to data
+
+        Parameters
+        -----------
+        x: array-like
+            Independent variable where data is measured
+        y: array-like
+            The values we are trying to fit, dependent data - f(x, ...).
+        """
         fun, guess_ = self._fit_wrapper()
-        x = self.x
-        y = self.y
+        x = deepcopy(self.x); y = deepcopy(self.y)
+
         if guess is None:
             guess = guess_
+
+        if verbose:
+            start_time = timeit.default_timer()
+            try:
+                print(  "Fitting {} to {} datapoints ...".\
+                        format(fun.__qualname__.split(".")[-1], len(x)))
+            except AttributeError as e:
+                print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
+
         #Solve non-linear lsq problem, yielding parama minimizing fun(x,*params)-y
-        start_time = timeit.default_timer()
-        try:
-            print("Fitting {} to {} datapoints ...".format(fun.__qualname__, len(x)))
-        except AttributeError as e:
-            print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
+        popt, _ = curve_fit(fun, x, y, p0 = guess, **kwargs)
 
-        popt, _ = curve_fit(fun, x, y, p0 = guess, maxfev = np.int(1e6),
-                            method = "lm")
+        if verbose:
+            end_time = timeit.default_timer()
+            print("Found parameters: {}.".format(popt))
+            print("Finished in {:.3f} s".format(end_time - start_time))
 
-        end_time = timeit.default_timer()
-        print("Found parameters: {}.".format(popt))
-        print("Finished in {:.3f} s".format(end_time - start_time))
         self.popt = popt
-
-        self.plot_fit(y, x, double_ax = double_ax)
+        if do_plot:
+            self.plot_fit(y, x, double_ax = double_ax)
 
 class SICMModel(Model):
     """SICM Model
@@ -270,94 +284,6 @@ class SICMModel(Model):
                             # bounds = ([1e-21, 1e-21, 1e-21], [np.inf, np.inf, np.inf]),
                             # bounds = ([0, 0], [np.inf, 1]),
                             method = "lm") # only lm works well
-
-        end_time = timeit.default_timer()
-        print("Found parameters: {}.".format(popt))
-        print("Finished in {:.3f} s".format(end_time - start_time))
-        self.popt = popt
-
-        self.plot_fit(y, x, double_ax = double_ax)
-
-class TemperatureModel(Model):
-    """Model of current-distance-temperature dependence"""
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        super(TemperatureModel, self).__init__()
-
-    @property
-    def x(self):
-        """Current relative to the bulk value"""
-        return self._x
-    @x.setter
-    def x(self, value):
-        # Assure current is being passed as relative.
-        if np.max(value) > 1.:
-            print("Scaling data to 0..1 range.")
-            value = value / np.max(value)
-        self._x =  value
-
-    @property
-    def y(self):
-        """Absolute Temperature"""
-        return self._y
-    @y.setter
-    def y(self, value):
-        self._y =  value
-
-    def plot(self, d_sub, r_i, do_invert = False, fname = "I vs. Tsub curve"):
-        """Plot data
-
-        Parameters
-        --------
-        do_invert: bool
-            Invert x,y axis and plot y vs. x plot
-        """
-        y = self.y
-        x = self.x
-        leg = "Current-Substrate temperature relation @ z/d={:.3f}".format(d_sub / (2*r_i))
-        fname = fname + "_{:.3f}".format(d_sub / (2*r_i))
-        if do_invert:
-            plots.plot_generic([y], [x], [r"$T_{sub}$"], [r"$I/I_{bulk}$"], leg, "inverted_"+ fname)
-        else:
-            plots.plot_generic([x], [y], [r"$T_{sub}$"], [r"$I/I_{bulk}$"], leg, fname)
-
-    def _fit_wrapper(self):
-        """"Fit convenience wrapper"""
-        guess = 2.4e-5, 247.8, 140
-        def _exponential_fit(f, *params):
-            """Fit general exponential relationship
-            Parameters
-            -----------
-            f: array-like
-                Relative current
-            params: tuple of floats
-                Parameters of the model
-            """
-            A, B, C = params
-            T = A * np.exp(B / (f - C))
-
-            # for polyfit
-            # A, B = params
-            # T = A * np.log(f) + B
-            return T
-        return _exponential_fit, guess
-
-    def fit(self, guess = None, double_ax = True):
-        fun, guess_ = self._fit_wrapper()
-        x = self.x # relative current
-        y = self.y #/ np.min(self.y) # Temperature
-        if guess is None:
-            guess = guess_
-        #Solve non-linear lsq problem, yielding parama minimizing fun(x,*params)-y
-        start_time = timeit.default_timer()
-        try:
-            print("Fitting {} to {} datapoints ...".format(fun.__qualname__, len(x)))
-        except AttributeError as e:
-            print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
-
-        popt, _ = curve_fit(fun, x, y, p0 = guess, maxfev = np.int(1e6),
-                            method = "lm")
 
         end_time = timeit.default_timer()
         print("Found parameters: {}.".format(popt))

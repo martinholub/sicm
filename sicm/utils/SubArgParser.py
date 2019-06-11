@@ -56,6 +56,9 @@ class SubArgParser(ArgumentParser):
         self.add_argument(  "--adjust", dest = "adjust",
                             action="store_true",
                             help = "Adjust saliency in selected region?")
+        self.add_argument(  "--convert", dest = "convert",
+                            action="store_true",
+                            help = "Convert measurements to temperature?")
         self.add_argument(  "--scale",  dest = "scale", type = hop_or_bulk_str,
                             action="store", default = "hop",
                             help = "Scale by 'bulk' or 'hop'?")
