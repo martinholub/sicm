@@ -7,7 +7,7 @@ from scipy.optimize import curve_fit
 from .model import Model
 
 class GeneralModel(Model):
-    """Simple Model of general functional relationship"""
+    """Simple Model of general y=f(x) functional relationship"""
     def __init__(self, x, y, fun):
         self.x = x
         self.y = y

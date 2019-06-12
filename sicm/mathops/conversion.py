@@ -5,7 +5,13 @@ from sicm.utils import utils
 
 def get_polyfun():
     def polyfun(x, params):
-        return np.sum((p*x**i for i, p in enumerate(params[::-1])))
+        """Evaluate relationship y = c_i * x ** i
+
+        Limit values to positive only!
+        """
+        y = np.sum((p*x**i for i, p in enumerate(params[::-1])))
+        y[y<0] = 0
+        return y
     return polyfun
 
 def convert_measurements(data, fun = None, params = None):
@@ -13,7 +19,7 @@ def convert_measurements(data, fun = None, params = None):
     if params is None:
         try:
             pwd = os.getcwd().replace("\\notebooks", "")
-            pth = os.path.join(pwd, "data/s9r003.json")
+            pth = os.path.join(pwd, "data/s9r004.json")
             d = utils.load_dict(pth)
             params = d["fit"]["coeff (mean)"]
         except Exception as e:

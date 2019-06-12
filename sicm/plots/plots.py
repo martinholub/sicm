@@ -301,35 +301,63 @@ def boxplot_generic(x, x_labs = None, y_lab = None, legend = None, fname = None)
     # recover plotting style
     mpl.rcParams.update(mpl.rcParamsDefault)
 
-def errorplot_generic(  Xs, Ys, Y_errs, x_lab = None, y_lab = None, legend = None,
-                            fname = None):
+def errorplot_generic(  Xs, Ys, Y_errs, x_lab = ["x"], y_lab = ["y"], legend = None,
+                        fname = None, fmts = None, ax = None, text = None, text_loc = (0.1, 0.1), scale = None, ticks = False, invert = None, **kwargs):
     """Generic Errorbar plot function
     """
 
     # set plotting style
     _set_rcparams()
 
-    fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."], ["^", "s", "o"])
-    fmts = ["".join(x) for x in fmts_prod]
+    if fmts is None:
+        fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."], ["^", "s", "o"])
+        fmts = ["".join(x) for x in fmts_prod]
 
-    fig = plt.figure(figsize = (4.5, 4.5))
-    ax = fig.add_subplot(1, 1, 1)
+    if ax is None:
+        fig = plt.figure(figsize = (4.5, 4.5))
+        ax = fig.add_subplot(1, 1, 1)
+
     handles = []
-    for i, (x, y, yerr) in enumerate(zip(Xs, Ys, Y_errs)):
-        ebars = ax.errorbar(x, y, yerr, fmt = fmts[i],
-                            capsize = 2, elinewidth = 1, ecolor = "gray", capthick = 1)
-        handles.append(ebars[0])
+    kwargs.update({"capsize" : 2, "elinewidth" : 1, "ecolor" : "gray", "capthick" : 1})
 
-    ax.set_ylabel(y_lab)
-    ax.set_xlabel(x_lab)
-    ax.set_xscale("log")
+    for i, (x, y, yerr, fmt) in enumerate(zip(Xs, Ys, Y_errs, fmts)):
+        try:
+            ebars = ax.errorbar(x, y, yerr, fmt = fmt, **kwargs)
+        except ValueError as e:
+            try: # allow grey colors in dirty way
+                ebars = ax.errorbar(x, y, yerr, linestyle = fmt[0], color = fmt[1:], **kwargs)
+            except ValueError as e:
+                try:
+                    ebars = ax.errorbar(x, y, yerr,  marker = fmt[0], color = fmt[1:],
+                                        linestyle = "None", **kwargs)
+                except Exception as e:
+                    raise e
+        ## OLD VERSION
+        # ebars = ax.errorbar(x, y, yerr, fmt = fmts[i],
+        #                     capsize = 2, elinewidth = 1, ecolor = "gray", capthick = 1, **kwargs)
+        handles.append(ebars[0])
+    ax.set_ylabel(y_lab[0])
+    ax.set_xlabel(x_lab[0])
+
+    if scale is not None:
+        if scale == "loglog": ax.set_xscale("log"); ax.set_yscale("log")
+        if scale == "logx":  ax.set_xscale("log")
+        if scale == "logy": ax.set_yscale("log")
+    if invert is not None:
+        if "x" in invert.lower(): ax.invert_xaxis()
+        if "y" in invert.lower(): ax.invert_yaxis()
 
     # legend
-    if legend is not None:
+    if legend is not None and legend != "":
         if not isinstance(legend, (list, tuple)): legend = [legend]
-        legend = ['\n'.join(wrap(l, 20)) for l in legend]
-        # `handletextpad=-2.0, handlelength=0` hides the marker in legend [1]
-        ax.legend(handles, legend, fontsize = ax.xaxis.label.get_size()-2)
+        legend = ['\n'.join(wrap(l, 21)) if not l.startswith("$") else l for l in legend]
+        ncol = 2 if len(legend) > 5 else 1
+        ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
+                    borderaxespad = 1.1, ncol = ncol)
+
+    if text is not None:
+        ax.text(text_loc[0], text_loc[1], text, transform = ax.transAxes,
+                color = "black")
 
     if fname is not None:
         utils.save_fig(fname)

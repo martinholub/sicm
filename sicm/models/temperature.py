@@ -4,6 +4,7 @@ import pandas as pd
 import timeit
 from scipy.optimize import curve_fit
 from copy import deepcopy
+from itertools import product
 
 
 from sicm import io
@@ -96,7 +97,6 @@ class AnalyticalModel(object):
         val *= (T * self.viscosity(self.T0)) /(self.T0 * self.viscosity(T))
         return val
 
-
 class TemperatureBulkModel(object):
     def __init__(self):
         pass
@@ -116,25 +116,33 @@ class TemperatureModelArray(object):
         self._build_model_array(adata, tdata, r_subs, Ts, T0, d_pipette, coln)
 
     def _scale_by_bulk(self, x, y, dT, allow_adjust = True):
+        """Scale current measurement by bulk value
+
+        If dT=T-T_bulk is non-zero, fits an exponential to y=f(x) data
+        to obtain value of y far from surface.
+        """
+
         if any(dT < -0.1): raise Exception("Decreasing Temperature!")
 
         if np.min(dT) > 0.1 and allow_adjust:
+            # Avoid exponential fit to the elbow region
+            ## TODO: How to determine the interval limit robustly???
             sel = x > 2.
             scaler = mathops.find_bulk_val(x[sel], y[sel])
         else:
             scaler = y[-1]
         return y / scaler
 
-
     def _build_model_array(self, adata, tdata, r_subs, Ts, T0, d_pipette, coln = 3):
+        """Build an iterable of TemperatureModels"""
         model_array = []
-        for t in Ts:
+        for t in Ts: # Iterate over unique values of T_sub
             xx = [] ; yy = []; TT = []
-            for r in r_subs:
+            for r in r_subs: # Iterate over unique values of rUME
                 # Temperature
                 dsub2 = tdata[(tdata["Tsub (K)"] == t) & (tdata["rUME (m)"] == r)]
                 col_sel = [col for col in dsub2 if col.startswith("Temperature (K)")]
-                dT = dsub2[col_sel].values.flatten() - T0
+                dT = dsub2[col_sel[0]].values.flatten() - T0
                 TT.append(dT)
 
                 # X-Axis
@@ -142,7 +150,7 @@ class TemperatureModelArray(object):
                 x = dsub["d (m)"].values / d_pipette
                 xx.append(x)
                 # Y-AXIS
-                y = dsub.iloc[:, coln].values
+                y = np.abs(dsub.iloc[:, coln].values)
                 y = self._scale_by_bulk(x, y, dT, allow_adjust = True)
                 yy.append( y)
 
@@ -151,12 +159,14 @@ class TemperatureModelArray(object):
             self.model_array.append(tm)
 
     def plot_overview(self):
+        """Plot all approaches for given rUME,T_sub"""
         for m in self.model_array:
             suffix = "_T{:.2f}K_d{:.0f}nm".format(m.T_sub, self.d_pipette*1e9)
             fname = utils.make_fname(self.fpath, suffix.replace(".", "p"))
             m.plot(fname = fname)
 
     def plot_check(self, plot_approach = False, **kwargs):
+        """Visually inspect validity of fits."""
         try:
             for i, m in enumerate(self.model_array):
                 suffix = "_T{:.2f}K_d{:.0f}nm_Fit".format(m.T_sub, self.d_pipette*1e9)
@@ -167,6 +177,13 @@ class TemperatureModelArray(object):
             raise e
 
     def fit(self, err_lim = 2e-1):
+        """Fit a linear relationship to select part of data
+
+        Parameters
+        -----------
+        err_lim: float
+            Maximum LSQ error for linear fit.
+        """
         if not isinstance(err_lim, (list, tuple, np.ndarray)): err_lim = [err_lim]
         if len(err_lim) != len(self.model_array): err_lim = err_lim * len(self.model_array)
         self.popts = {}
@@ -177,30 +194,36 @@ class TemperatureModelArray(object):
             self.popts["{:.2f}".format(m.T_sub)] = m.popt
             self.lims["{:.2f}".format(m.T_sub)] = lims
 
-    def extract_valid_fit(self, do_plot = True):
+    def extract_valid_fit(self, do_plot = False):
+        """Extract mean parameters of the fit from multiple simulations"""
+
         if do_plot:
             fig, ax = plt.subplots(1, 1, figsize = (4, 4))
-            cs = ["c", "g", "whitesmoke", "y", "b", "pink", "m", "brown", "teal", "skyblue",
-                 "k", "darkgray", "indigo"]
-            fmts = ["-" + c for c in cs]
+            # cs = ["c", "g", "whitesmoke", "y", "b", "pink", "m"]
+            # cs += ["brown", "teal", "skyblue", "k", "darkgray", "indigo"]
+            # fmts = ["-" + c for c in cs]
+            fmts = ["sk"]
 
-        x_ax = np.linspace(1, 1.3, 25)
+        x_ax = np.linspace(1, 1.3, 30)
         a = []; b = []
         info_dict = {}
         summary = {"good": [], "bad": []}
         lims_good = []
+        Ys = []
+        fun, _ = self.model_array[0]._fit_wrapper("predict")
         for j, (k, super_v) in enumerate(self.popts.items()): # loop over temperatures
             xs = []; ys = []
             info_dict[k] = {"bad": [], "good": []}
             for i, p in enumerate(super_v): # loop over r_sub
-                y = p[0] * x_ax + p[1] # compute value of the fit
+                # compute values (dT) of the fit
+                y = fun(x_ax, *p) #     y = p[0] * x_ax + p[1]
 
                 # Report validity of the fit
                 v1 = self.r_sub[i] / self.d_pipette
                 v2 = self.lims[k][i]
                 info = {"rSUB/dTIP": "{:.2f}".format(v1), "z/d LIM": "{:.2f}".format(v2)}
                 ## Mark data where we do not start @ 0 as bad.
-                if y[0] > 0.25:
+                if False: #y[0] > 0.25 or y[0] < -0.05:
                     info_dict[k]["bad"].append(info)
                     summary["bad"].append((k, "{:.2f}".format(v1), "{:.2f}".format(v2)))
                     continue
@@ -210,22 +233,33 @@ class TemperatureModelArray(object):
                     lims_good.append(v2)
 
                 a.append(p[0]); b.append(p[1])
-                xs.append(x_ax); ys.append(y)
+                xs.append(x_ax); ys.append(y); Ys.append(y)
 
-            if do_plot:
-                plots.plot_generic(xs, ys, ["$I / I_{bulk}$"], ["$\Delta\ T$"],
-                                fmts = fmts, linewidth = 0.5, alpha = 0.15, ax = ax)
+            ## OLD VERSION
+            # if do_plot:
+            #     plots.plot_generic(xs, ys, ["$I / I_{bulk}$"], ["$\Delta\ T$"],
+            #                     fmts = fmts, linewidth = 0.5, alpha = 0.15, ax = ax)
+        if do_plot:
+            y_temp = np.asarray(Ys).T
+            y_mean = np.mean(y_temp, axis = 1)
+            y_std = np.std(y_temp, axis = 1)
+            plots.errorplot_generic([x_ax], [y_mean], [y_std], [r"$I / I_{bulk}$"],
+                                    ["$\Delta\ T$"], fmts = fmts, alpha = 0.4,
+                                    ax = ax, markersize = 1)
 
-        txt = "y = x*{:.4f} + {:.4f}".format(np.mean(a), np.mean(b))
+        import pdb; pdb.set_trace()
+        a_, b_ = mathops.get_fit_params(a, b, force_positive = True)
+        txt = "y = x*{:.4f} + {:.4f}".format(a_, b_)
         txt += "; stds: ({:.4f}, {:.4f})".format(np.std(a), np.std(b))
         txt += "\nz/d LIM = {:.4f}; (std = {:.4f})".format(np.mean(lims_good), np.std(lims_good))
         print(txt)
         info_dict["summary"] = summary
-        info_dict["fit"] = {"coeff (mean)": (np.mean(a), np.mean(b)),
+        info_dict["fit"] = {"coeff (mean)": (a_, b_),
                             "coeff (std)": (np.std(a), np.std(b))}
         if do_plot:
             # Compute valid fit
-            y = np.mean(a) * x_ax + np.mean(b)
+            # y = np.mean(a) * x_ax + np.mean(b)
+            y = fun(x_ax, a_, b_)
             ax.plot(x_ax, y, alpha = 0.75, color = "red", linewidth = 2)
             txt = r"$n = {:d}$".format(len(summary["good"]))
             ax.text(0.75, 0.1, txt, transform = ax.transAxes, color = "black")
@@ -359,21 +393,30 @@ class TemperatureModel(Model):
                             text = txt, text_loc = (1.01, 0.9), fmts = fmts_buff,
                             invert = None)
 
-    def _fit_wrapper(self):
+    def _fit_wrapper(self, what = "fit"):
         """"Fit convenience wrapper"""
-        guess = [-1, 3] # guess of likely parameters
+        guess = [1, -1] # guess of likely parameters
         def _linear_fit(x, *params):
             """Fit linear realtionship"""
             a, b = params
-            y = a*x + b
+            y = a*(x) + b
             return y
-        return _linear_fit, guess
+        def _linear_predict(x, *params):
+            a, b = params
+            y = a*(x) + b
+            y[y<0] = 0
+            return y
 
+        if what == "fit":
+            return _linear_fit, guess
+        else:
+            return _linear_predict, guess
 
     def _find_elbow(self, x, y, is_debug = False):
         """Depreceated, does not work optimally for required goal
 
-        Delet on next revision"""
+        Delete on next revision
+        """
         # https://dataplatform.cloud.ibm.com/analytics/notebooks/54d79c2a-f155-40ec-93ec-ed05b58afa39/view?access_token=6d8ec910cf2a1b3901c721fcb94638563cd646fe14400fecbb76cea6aaae2fb1
         # 2D coordinate
         all_coords = np.vstack((x, y)).T
@@ -417,11 +460,10 @@ class TemperatureModel(Model):
             popt, fit_err, _, _, _ = np.polyfit(x_, y_, deg = 1, w = weights,
                                                 full = True, cov = False)
 
-            # TODO: Punish error on proximal points more severly ???
+            # TPunish error on proximal points more severly
             w = weights_[:len(x_)]
             fit_err = np.sum((np.power(w * (popt[0]*x_ + popt[1] - y_), 2)))
             # fit_err = np.sum(np.sqrt(np.diag(cov)))
-
 
             if fit_err < error: break
             x_ = x_[1:]
@@ -505,6 +547,7 @@ class TemperatureModel(Model):
         start_time = timeit.default_timer()
         popts = []
         for x, y, xx, yy in zip(x_, y_, xx_, yy_):
+
             if verbose:
                 try:
                     print(  "Fitting {} to {} datapoints ...".\
@@ -512,8 +555,9 @@ class TemperatureModel(Model):
                 except AttributeError as e:
                     print("Fitting {} to {} datapoints ...".format(fun.__name__, len(x)))
 
+            bounds = (-np.inf, np.inf) #(0, np.inf)
             popt, _ = curve_fit(fun, x, y, p0 = guess, maxfev = np.int(1e6),
-                                method = "lm")
+                                bounds = bounds, method = "lm")
             # polyfit works equaly well for simple problems
             # popt = np.polyfit(x, y, 1)
 

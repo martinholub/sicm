@@ -9,8 +9,8 @@ from copy import deepcopy
 
 import matplotlib.pyplot as plt
 
-
 class Model(object):
+    """Model SuperClass"""
     def __init__(self):
         pass
 

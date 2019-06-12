@@ -37,3 +37,9 @@ def _ratio_fit(x, *params):
     A, B, C = params
     y = A * (x + B) / (x + C)
     return y
+
+def _linear_fit(x, *params):
+    """Fit linear realtionship"""
+    a, b = params
+    y = a*x + b
+    return y

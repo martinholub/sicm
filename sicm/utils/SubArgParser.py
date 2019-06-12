@@ -13,6 +13,8 @@ def hop_or_bulk_str(x):
         return "bulk"
     elif x.lower().startswith("h"):
         return "hop"
+    elif x.lower().startswith("i"):
+        return "infinity"
     else:
         return "hop"
 

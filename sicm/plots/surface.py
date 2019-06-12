@@ -305,7 +305,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
         raise NotImplementedError("Sparse measurements not implemented!")
     else:
         with plt.style.context("seaborn-ticks"):
-            fmt = "%.2e" if (np.max(np.abs(z)) < 1e-3 or np.min(np.abs(z)) > 1e3) else "%.2f"
+            fmt = "%.2e" if (np.max(np.abs(z)) < 1e-3 or np.min(np.abs(z)) > 1e3) else "%.3f"
             if any(cl is None for cl in cbar_lims):
                 # Option 2: Variable colorbar, but better contrast for each slice
                 conts = plot_contour(ax, x, y, z)

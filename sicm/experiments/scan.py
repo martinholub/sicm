@@ -12,6 +12,7 @@ from sicm.io import downsample_to_linenumber
 from .experiment import Experiment
 from ..measurements.hops import Hops
 from sicm.mathops.conversion import convert_measurements
+from sicm.mathops import mathops
 
 class Scan(Experiment):
     """SCAN Object
@@ -252,7 +253,19 @@ class Scan(Experiment):
         return X, Y, Z
 
     def _calculate_interval_adjustment(approach_linenos, approach_data):
-        """Calculate length-of-interval adjustment for first approach"""
+        """Calculate length-of-interval adjustment for first approach
+
+        ???: This is most-likely not going to be used anymore. Remove on next revision.
+
+        Attempt to figure out how to adjust a first approach that is usually much
+        longer than other.
+
+        Returns
+        -----------
+        first_length_adj: int
+            The index to data, from end, that marks interval to keep (e.g.
+            z_down = z_down[-first_length_adj:])
+        """
         # Gather information on approach/retract speeds.
         speeds = np.empty((len(approach_linenos), 2))
         lengths = np.empty((len(approach_linenos), 2))
@@ -395,20 +408,6 @@ class Scan(Experiment):
         fpath = utils.make_fname(fpath, "_approach{}".format(loc_str), ext = ".png")
         plots.plot_generic(x_ax, y_ax, x_lab, y_lab, fname = fpath)
 
-    def _get_descriptor_fun(self, descriptor):
-        """Fetch function based on its name"""
-        if descriptor == "trim_mean":
-            def trim_mean_(x): # get default for proportion to trim on both sideds
-                return trim_mean(x, 0.1)
-            fun_ = trim_mean_
-        else:
-            try:
-                fun_ = getattr(np, descriptor)
-            except Exception as e:
-                print("Decriptor {} not found, selecting 'mean'.")
-                fun_ = np.mean
-        return fun_
-
     def plot_slices(self, X, Y, tilt, n_slices = 10, thickness = .9,
                     zrange = (None, None), clip = (None, None),
                     scaleby = "hop", center = True,  n_levels = 10,
@@ -429,10 +428,15 @@ class Scan(Experiment):
         scaleby: str
             Either "hop" or "bulk". Choosing "hop" scales each rendered value by
             the value at the top of corresponding approach.
+        center: bool
+            Center x,y around zero?
+        Z_aux: np.ndarray or None
+            If Z_aux is an array, it is overlayed as line-contours
         """
-        ## Look at raw data and trim here
+        ## Look at raw data and trim here - OLD VERSION
         # data = self._trim_data(self._data, self.x_trim, self.y_trim)
         # uniqs, cnts = np.unique(data["LineNumber"], return_counts=True)
+
         ## Get infromation from dsdata and use nontrimmed raw data
         trimmed_data = self.dsdata
         data = self._data
@@ -454,13 +458,8 @@ class Scan(Experiment):
             sel, _ = self._select_approach(data_all, None)
             approach_current = data_all["Current1(A)"][sel]
             approach_t = np.cumsum(data_all["dt(s)"][sel])
-            idxs = np.nonzero(approach_t < 250e-3)[0]
-            # bulk_current = np.quantile(approach_current[idxs], 0.95)
-            bulk_current = trim_mean(approach_current[idxs], 0.1)
-
-
-        # first_length_adj = _calculate_interval_adjustment(  approach_linenos,
-        #                                                     approach_data)
+            x, y = mathops.rolling_mean(approach_t, approach_current, 10)
+            _, bulk_current = mathops.scale_by_init(x, y,"trim", 0.1)
 
         # Vectorization possible?
         z_axs = []
@@ -533,7 +532,7 @@ class Scan(Experiment):
         good_keys = []
 
         ## Obtain descriptor
-        descriptor_fun = self._get_descriptor_fun(descriptor)
+        descriptor_fun = mathops.get_descriptor_fun(descriptor)
         for i, (aln, rln) in enumerate(zip(approach_linenos, retract_linenos)):
             for k, key in enumerate(keypairs.keys()):
                 # one of the two may not be always present.
@@ -546,19 +545,32 @@ class Scan(Experiment):
                 v_up = data[key][data["LineNumber"] == rln]
                 if i == 0:
                     v_down = v_down[first_app_keep]
-                    # v_down = v_down[-first_length_adj:]
+                    # v_down = v_down[-first_length_adj:] ## --- OLD VERSION
+
                 # Concatenate discarding point at the very bottom from both sides
                 v_all = np.concatenate((v_down[:-1], v_up[1:]))
 
                 if scaleby.lower().startswith("b"):
                     scaler = bulk_current
+                elif scaleby.lower().startswith("inf"):
+                    # This may work if you sample long enough distance of approach
+                    # Such that it faithfully represents an exponential
+                    # Note that size of window for rolling mean should be optimzed.
+                    # shift = np.int(len(v_down)//7)
+                    # x = np.arange(len(v_down)-(shift - 1), 1, -1)
+                    # x, y = mathops.rolling_mean(x, v_down[:-shift], 125)
+                    # scaler = mathops.find_bulk_val(x, y)
+                    raise NotImplementedError("Scalling by value at infinity is not implemented!")
                 else:
                     # Normalize by value at the top of approach
                     # consider initial 250ms as period for sampling max value
                     # take almost maximum, but avoid picking an outlier
-                    t = np.cumsum(data["dt(s)"][data["LineNumber"] == aln])
-                    idxs = np.nonzero(t < 250e-3)[0]
-                    scaler = np.quantile(v_down[idxs], 0.95)
+                    t = data["dt(s)"][data["LineNumber"] == aln]
+                    if i == 0:
+                        t = t[first_app_keep]
+                    x, y = mathops.rolling_mean(np.cumsum(t), v_down, 15)
+                    _, scaler = mathops.scale_by_init(x, y, q = 0.05, t_len = 150e-3)
+                    # _, scaler = mathops.scale_by_init(np.cumsum(t), v_all)
 
                 v_all = v_all / scaler
 
@@ -611,7 +623,7 @@ class Scan(Experiment):
                 val = val_
                 params_adj = {}
 
-            if self.convert: label = r"$\Delta T$"
+            if self.convert: label = r"$\Delta T [K]$"
             # Make colorbar extents common to all slices for given key
 
             cbar_lims_stds  = (np.nanmin(val_stds), np.nanmax(val_stds))
@@ -684,7 +696,11 @@ class Scan(Experiment):
                         center = False, thickness = 0.9, zrange = (None, None),
                         clip = (None, None), scaleby = "hop", n_levels = 10,
                         descriptor = "mean", overlay = False, adjust = False):
-        """Plot surface as contours and 3D"""
+        """Plot surface as contours and 3D
+
+        Parameters
+        -----------
+        thickens"""
         # Plot downsampled Data
         result = self.dsdata
         X = np.squeeze(result["X(um)"])
@@ -694,13 +710,16 @@ class Scan(Experiment):
             # We care about measurements of current
             Z = np.squeeze(result["Current1(A)"])
             z_lab = "Current1(A)"
-            ## Pick current values with consistent coordinate only
+
+            ## Pick current values with CONSISTENT COORDINATE ONLY
             ## This works as long as the movemement in Z is just due to noise
             # Z_aux = np.squeeze(result["Z(um)"])
+
             ## DOWNSAMPLE
             # uniqs, cnts = np.unique(Z_aux, return_counts = True)
             # to_keep = np.nonzero(Z_aux == uniqs[np.argmax(cnts)])[0]
             # X, Y, Z = self._downsample_surface_data(X, Y, Z, to_keep)
+
             ## AGGREGATE: preferred!
             X, Y, Z = self._aggregate_surface_data(X, Y, Z)
 
