@@ -248,7 +248,7 @@ class TemperatureModelArray(object):
                                     ax = ax, markersize = 1)
 
         import pdb; pdb.set_trace()
-        a_, b_ = mathops.get_fit_params(a, b, force_positive = True)
+        a_, b_ = mathops.get_fit_params(a, b, force_positive = False)
         txt = "y = x*{:.4f} + {:.4f}".format(a_, b_)
         txt += "; stds: ({:.4f}, {:.4f})".format(np.std(a), np.std(b))
         txt += "\nz/d LIM = {:.4f}; (std = {:.4f})".format(np.mean(lims_good), np.std(lims_good))
