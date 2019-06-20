@@ -14,7 +14,7 @@ from matplotlib.ticker import FormatStrFormatter
 from sicm import analysis
 from sicm.utils import utils
 
-def _set_rcparams(ticks = False):
+def _set_rcparams(ticks = False, style = "default"):
     if ticks:
         plt.style.use("seaborn-ticks")
     else:
@@ -22,12 +22,25 @@ def _set_rcparams(ticks = False):
 
     params = {  "font.family": "serif",
                 "font.weight": "normal",
-                "xtick.labelsize": 10,
-                "ytick.labelsize": 10,
+                "xtick.labelsize": 12,
+                "ytick.labelsize": 12,
                 "xtick.bottom": True,
                 "xtick.direction": "in",
                 "ytick.left": True,
-                "ytick.direction": "in"}
+                "ytick.direction": "in",
+                "savefig.dpi": 600}
+
+    params_present = {
+        "font.weight": "bold",
+        "font.size": 12,
+        "xtick.labelsize": 14,
+        "ytick.labelsize": 14,
+        "axes.labelsize ": "bold",
+        "axes.labelweight": "bold",
+    }
+
+    if style.lower().startswith("pres"):
+        params.update(params_present)
     mpl.rcParams.update(params)
 
 def plot_mock(ax):
@@ -207,6 +220,7 @@ def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = 
 
     if fmts is None:
         fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."])
+        fmts_prod = itertools.product([":", "--", "-."], list("ygrbmck"))
         fmts = ["".join(x) for x in fmts_prod]
 
     if len(x_labs) <= len(Xs):

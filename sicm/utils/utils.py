@@ -9,6 +9,7 @@ def make_fname(fname, suffix = "", ext = ".pdf", subdirname = ""):
     # Append suffix to filename and remove non-desirable characters
     basename = os.path.splitext(os.path.basename(fname))[0] + suffix
     basename = basename.replace(" ", "_").replace("/", "").replace(":", "").replace(".", "")
+    basename = basename.replace("\\", "").replace("@", "_")
     # Obtain absolute location of parent direcotry and normalize
     dirname = os.path.dirname(fname)
     subdir_path = os.path.normpath(os.path.join(dirname, subdirname))
@@ -25,7 +26,7 @@ def save_fig(fname, suffix = "", ext = ".pdf"):
         ext = "." + ext
 
     fname = make_fname(fname, suffix, ext)
-    plt.savefig(fname, dpi = 300, bbox_inches = "tight")
+    plt.savefig(fname, dpi = 600, bbox_inches = "tight")
     print("Saved figure to {}.".format(fname))
 
 def make_patch_spines_invisible(ax):

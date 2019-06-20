@@ -247,7 +247,6 @@ class TemperatureModelArray(object):
                                     ["$\Delta\ T$"], fmts = fmts, alpha = 0.4,
                                     ax = ax, markersize = 1)
 
-        import pdb; pdb.set_trace()
         a_, b_ = mathops.get_fit_params(a, b, force_positive = False)
         txt = "y = x*{:.4f} + {:.4f}".format(a_, b_)
         txt += "; stds: ({:.4f}, {:.4f})".format(np.std(a), np.std(b))

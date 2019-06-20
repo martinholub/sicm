@@ -90,11 +90,10 @@ class ComsolModel(Model):
         if variable is not None:
             return variable, None
         else:
-
             keys = list(self.comsol.data.keys())
             n_repeats = [len(self.comsol.data[k].unique()) for k in keys]
             valid_keys  = [k for k, nr in zip(keys, n_repeats) if nr > 0 and k != "d (m)"]
-            validator = ['rUME (m)', 'Tsub (K)', 'aspect', 'P_beam (W/m^2)']
+            validator = ['rUME (m)', 'Tsub (K)', 'aspect', 'P_beam (W/m^2)', 'S_T (K)']
             valid_keys = [k for k in valid_keys if k in validator]
             if len(valid_keys) == 1:
                 return valid_keys[0], None
@@ -201,6 +200,14 @@ class ComsolModel(Model):
                             ax_txt = r"$r_{{sub}}$={:.0f}$nm$".format(var * 1e9)
 
                         ax_txt = "P = {:.2f} $mW/cm^2$".format(var * 1e-1)
+                    elif secondary_var_name.lower().startswith(("s")):
+                        txt = r"$S_T={:.3f}$".format(sec_var)
+                        if var_name.lower().startswith("t"):
+                            ax_txt = "T = {:.2f} K".format(var)
+                        elif var_name.lower().startswith("r"):
+                            ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
+                        else:
+                            ax_txt = None
                     else:
                         txt = ax_txt = None
                     legend += [txt]

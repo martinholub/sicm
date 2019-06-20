@@ -6,6 +6,7 @@ from copy import deepcopy
 from sicm import analysis, io
 from sicm.utils import utils
 from .signal import Signal
+from sicm.plots import plots
 
 class Hops(object):
     def __init__(self, data, idxs, name, date):
@@ -44,13 +45,13 @@ class Hops(object):
             sel = np.nonzero(np.logical_and(X > sel[0], X <= sel[-1]))[0]
 
         subkeys = ['Z(um)', 'LockinPhase', 'Current1(A)', 'time(s)']
-        subkeys.extend(["LockinAmplitude"]) # comment if not desired
+        # subkeys.extend(["LockinAmplitude"]) # comment if not desired
         subresult = {k:v[sel] for k,v in self.data.items() if k in subkeys}
         idxs = self.idxs[np.isin(self.idxs, sel)]
         idxs = idxs - sel[0]
         return subresult, idxs
 
-    def plot(self,  sel = None, xkey = "time(s)", fname = None, do_annotate = True):
+    def plot(self, sel = None, xkey = "time(s)", fname = None, do_annotate = True):
         """Plots all keys in data against x-key
 
         As plot lockin but on a single plot. Bit of code duplication, but gives
@@ -65,23 +66,22 @@ class Hops(object):
         name = self.name
         date = self.date
 
-        if "time(s)" not in data.keys():
-            data["time(s)"] = np.cumsum(data["dt(s)"])
-
         assert isinstance(xkey, (str, )), "xkey must be a string"
         assert xkey in data.keys(), "xkey must be in data"
 
         # Create single plot with three axis
-        plt.style.use("seaborn")
-        fig, ax = plt.subplots(figsize = (6.4*1.5, 4.8))
+        # plt.style.use("seaborn")
+        plots._set_rcparams()
+        fig, ax = plt.subplots(figsize = (4.8/0.75, 4.8))
         plt.subplots_adjust(right = 0.75)
         axs = [ax] + list(map(lambda x: x.twinx(), [ax]*(len(data) - 2)))
 
         # Adjust the right-most axis
-        axs[-1].spines["right"].set_position(("axes", 1.2))
-        axs[-1].get_yaxis().get_offset_text().set_x(1.3)
-        utils.make_patch_spines_invisible(axs[-1])
-        axs[-1].spines["right"].set_visible(True)
+        if len(axs)>3:
+            axs[-1].spines["right"].set_position(("axes", 1.2))
+            axs[-1].get_yaxis().get_offset_text().set_x(1.3)
+            utils.make_patch_spines_invisible(axs[-1])
+            axs[-1].spines["right"].set_visible(True)
 
         # Add name to figure
         if name is None:
@@ -92,17 +92,29 @@ class Hops(object):
             text = "{} @ {}".format(text, date)
         fig.suptitle(text, size = 16, y = 0.96)
 
-        fmts = ["k-", "r-", "g-"]
+        fmts_map = {
+            'LockinPhase': "-gray",
+            'Z(um)': "-k",
+            "Current1(A)": "-green"
+        }
         handles = []
         labels = []
-        data_, annot = self.annotate_peaks(sel, xkey, do_plot = False)
+        if do_annotate:
+            data_, annot = self.annotate_peaks(sel, xkey, do_plot = False)
+        else:
+            data_ = deepcopy(data)
+
         for i, (k, v) in enumerate(data_.items()):
             if k == xkey: continue # dont plot x vs x
-            peaks_id = annot[k.lstrip("_")]["peaks_id"]
+            fmt = fmts_map[k]
             try:
-                axs[i].plot(data_[xkey], v, fmts[i], label = k, alpha = .5)
-                this_color = fmts[i][0]
+                this_color = fmt[1:]
+                this_style = fmt[0]
+                axs[i].plot(data_[xkey], v, ls = this_style, c = this_color,
+                            label = k, alpha = .5)
+
                 if do_annotate:
+                    peaks_id = annot[k.lstrip("_")]["peaks_id"]
                     axs[i].plot(data_[xkey][peaks_id], v[peaks_id], alpha = 1,
                                 linestyle = "", marker = "*", markersize = 10,
                                 markerfacecolor = this_color)
@@ -119,7 +131,7 @@ class Hops(object):
             except KeyError as e:
                 plot_mock(axs[i])
         # Combine legends and show.
-        ax.legend(handles, labels, bbox_to_anchor = (.65, .2), frameon = True)
+        ax.legend(handles, labels, bbox_to_anchor = (1., 1.), frameon = True)
 
         if fname is not None:
             utils.save_fig(fname)

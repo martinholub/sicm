@@ -7,6 +7,7 @@ from matplotlib.ticker import FormatStrFormatter
 
 from sicm import analysis
 from sicm.utils import utils
+from sicm.plots.plots import _set_rcparams
 
 def make_colorbar(fig, cmap, fmt, levels, cmin, cmax):
     """Make nice colorbar
@@ -308,7 +309,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
             fmt = "%.2e" if (np.max(np.abs(z)) < 1e-3 or np.min(np.abs(z)) > 1e3) else "%.3f"
             if any(cl is None for cl in cbar_lims):
                 # Option 2: Variable colorbar, but better contrast for each slice
-                conts = plot_contour(ax, x, y, z)
+                conts = plot_contour(ax, x, y, z, levels = n_levels)
                 cbar = fig.colorbar(conts, ticks = conts.levels, format = fmt, drawedges = False)
                 # cbar.set_clim(*cbar_lims) # this appears not helpful
             else:
@@ -340,7 +341,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
     if len(plt.get_fignums()) > 3:
         plt.close('all')
 
-def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = False):
+def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = False, n_levels = 10):
     """Plot 3D surface contours
 
     Parameters
@@ -360,7 +361,7 @@ def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = False):
 
     # Filled countour with triangulation
     ax = fig.add_subplot(2, 2, 1)
-    plot_slice(x, y, z, z_lab, ax, center = center)
+    plot_slice(x, y, z, z_lab, ax, center = center, n_levels= n_levels)
 
     # Surface in 3D projection
     ax = fig.add_subplot(2, 2, 2, projection='3d')

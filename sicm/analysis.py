@@ -364,7 +364,7 @@ class Fitter(object):
         TODO: progbar
         """
         x = self.data[0] # frequency
-        y = self.data[1] # amplitude
+        y = self.data[1] # amplitude -
         #Solve non-linear lsq problem, yielding parama minimizing fun(x,*params)-y
         start_time = timeit.default_timer()
         try:
@@ -472,37 +472,38 @@ class Fitter(object):
         sqerr = np.sum(np.power((r_e - r)/np.max(r), 2))
         r_m = self.r_m
 
-        plt.style.use("seaborn")
+        # plt.style.use("seaborn")
+        plots._set_rcparams()
         fig, ax = plt.subplots(figsize = (6.4, 4.8))
         text = "Lorentzian fit @ {}".format(self.date)
-        fig.suptitle(text, size  = 16, y = 0.92)
+        # fig.suptitle(text, size  = 16, y = 0.92)
 
         # Plot amplitude on first axis
-        ax.plot(f, r, label = r"$A_e$ (data)", marker = ".", color = "k", alpha = 0.3,
+        ax.plot(f, r*1e3, label = r"$A_e$ (data)", marker = ".", color = "k", alpha = 0.3,
                 markevery = 5, linestyle = "")
-        ax.plot(f, r_e, "k--", label = r"$A_e$ (fit)", alpha = 0.7)
-        ax.plot(f, r_m, "g-", label = r"$A_m$", alpha = 0.7)
-        ax.set_xlabel("f [Hz]")
-        ax.set_ylabel("amplitude [V]")
+        ax.plot(f, r_e*1e3, "k--", label = r"$A_e$ (fit)", alpha = 0.7)
+        ax.plot(f, r_m*1e3, "g-", label = r"$A_m$", alpha = 0.7)
+        ax.set_xlabel(r"$f\ [Hz]$")
+        ax.set_ylabel(r"$V\ [mV]$")
         # Add info box
         txt = "$f_0$: {:.2f} Hz\n$Q$: {:.2f}\n$error_{{fit}}$: {:.2E}".format(\
                         self.f0, self.Q, sqerr)
-        plt.text(1.1, 0.1, txt, transform=ax.transAxes,
+        plt.text(0.1, 0.5, txt, transform=ax.transAxes,
             fontdict = {'color': 'k', 'fontsize': 12, 'ha': 'left', 'va': 'center',
                         'bbox': dict(boxstyle="square", fc="w", ec="k", pad=0.2)})
 
         # Plot phase on second axis
         ax2 = ax.twinx()
-        ax2.plot(f, self.theta_e, "r--", label = r"$\theta_e$", alpha = 0.3)
+        ax2.plot(f, self.theta_e, "r.", label = r"$\theta_e$ (data)", alpha = 0.3, markevery = 5)
         ax2.plot(f, self.theta_m, "r-", label = r"$\theta_m$", alpha = 0.3)
-        ax2.set_ylabel("phase [rad]", color="r")
+        ax2.set_ylabel(r"$\theta\ [rad]$", color="r")
         ax2.tick_params("y", colors="r")
-        ax2.grid(axis = "y", color = "r", alpha = .3, linewidth = .5, linestyle = ":")
+        # ax2.grid(axis = "y", color = "r", alpha = .3, linewidth = .5, linestyle = ":")
         # Combine legends and show.
         h1, l1 = ax.get_legend_handles_labels()
         h2, l2 = ax2.get_legend_handles_labels()
-        ax.legend(h1+h2, l1+l2, bbox_to_anchor = (1.3, 1.1), frameon = True)
-        utils.save_fig(text)
+        ax.legend(h1+h2, l1+l2, bbox_to_anchor = (0.75, 0.55), frameon = True)
+        utils.save_fig("lorentzian_fit", ext = ".png")
         plt.show()
 
     def process(self):

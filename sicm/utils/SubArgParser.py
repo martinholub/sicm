@@ -61,6 +61,10 @@ class SubArgParser(ArgumentParser):
         self.add_argument(  "--convert", dest = "convert",
                             action="store_true",
                             help = "Convert measurements to temperature?")
+        self.add_argument(  "--style", dest = "plot_style", action="store",
+                            choices = ["publication", "presentation", "default"],
+                            default = "default",
+                            help = "What style of plots to produce?")
         self.add_argument(  "--scale",  dest = "scale", type = hop_or_bulk_str,
                             action="store", default = "hop",
                             help = "Scale by 'bulk' or 'hop'?")

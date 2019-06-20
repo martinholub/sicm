@@ -3,9 +3,13 @@ import numpy as np
 import os
 from copy import deepcopy
 import matplotlib.pyplot as plt
+import timeit
+from scipy.optimize import curve_fit
+from math import ceil
 
 from sicm import analysis, io
 from sicm.plots import plots
+from sicm.utils import utils
 
 class LockIn(object):
     """LockIn class"""
@@ -100,7 +104,7 @@ class LockIn(object):
         y_corr = analysis.Fitter.apply_correction(self, f = x, r_e = y_hat)
 
         plt.style.use("seaborn")
-        fig, ax = plt.subplots(figsize = (6.4, 4.8))
+        fig, ax = plt.subplots(figsize = (4.5, 4.5))
         text = "Internal Impedance Fit @ {}".format(self.date)
         fig.suptitle(text, size  = 16, y = 0.96)
 
@@ -273,7 +277,7 @@ class LockIn(object):
         return y_corr
 
     #### Stuff for oscillator
-    def plot_fit_osc(self, data, xlog= False, double_ax = False, plot_range = None):
+    def plot_fit_osc(self, data, double_ax = False, plot_range = None):
         """Plots results of function fitting
 
         Calculates error of the fit as sum of squared errors, scaled by maximum
@@ -307,10 +311,10 @@ class LockIn(object):
         except Exception as e:
             sqerr = np.nan
 
-        plt.style.use("seaborn")
+        plots._set_rcparams(ticks = True)
         fig, ax = plt.subplots(figsize = (6.4, 4.8))
-        text = "Oscillator Model Fit @ {}".format(self.date)
-        fig.suptitle(text, size  = 16, y = 0.96)
+        # text = "Oscillator Model Fit @ {}".format(self.date)
+        # fig.suptitle(text, size  = 16, y = 0.96)
 
         # Plot amplitude on first axis
         try:
@@ -325,14 +329,12 @@ class LockIn(object):
                     label = r"$Z_{in} (corr)$", alpha = 0.7)
         ax.set_xlabel("f [Hz]")
         ax.set_ylabel(r"|Z| [$\Omega$]")
-        if xlog:
-            ax.set_xscale("log")
-            ax.set_xlabel("log f [Hz]")
+        ax.set_xscale("log"); ax.set_yscale("log")
         # Add info box
         txt = "$error_{{fit}}$: {:.2E}".format(sqerr)
-        plt.text(1.1, 0.1, txt, transform=ax.transAxes,
-            fontdict = {'color': 'k', 'fontsize': 12, 'ha': 'left', 'va': 'center',
-                        'bbox': dict(boxstyle="square", fc="w", ec="k", pad=0.2)})
+        # plt.text(1.1, 0.1, txt, transform=ax.transAxes,
+        #     fontdict = {'color': 'k', 'fontsize': 12, 'ha': 'left', 'va': 'center',
+        #                 'bbox': dict(boxstyle="square", fc="w", ec="k", pad=0.2)})
 
         # Plot fit on second axis
         ax2 = ax.twinx() if double_ax else ax
@@ -347,8 +349,8 @@ class LockIn(object):
             h2, l2 = ([], [])
         # Combine legends and show.
         h1, l1 = ax.get_legend_handles_labels()
-        ax.legend(h1+h2, l1+l2, bbox_to_anchor = (1.3, 1.1), frameon = True)
-        # utils.save_fig(text)
+        ax.legend(h1+h2, l1+l2, bbox_to_anchor = (0.9, .35), frameon = True)
+        utils.save_fig("oscilator_model_fit", ext = ".png")
         plt.show()
 
     def _resonator_model(f, *params):

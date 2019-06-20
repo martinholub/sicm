@@ -221,7 +221,7 @@ class Scan(Experiment):
             x_step, y_step = self._calculate_step_size()
             x_sel = np.logical_and( dsdata["X(um)"] > x - x_step / 3,
                                     dsdata["X(um)"] < x + x_step / 3)
-            y_sel = np.logical_and( dsdata["Y(um)"] > y - x_step / 3,
+            y_sel = np.logical_and( dsdata["Y(um)"] > y - y_step / 3,
                                     dsdata["Y(um)"] < y + y_step / 3)
             xy_sel = np.logical_and(x_sel, y_sel)
             approach_lineno = np.unique(dsdata["LineNumber"][xy_sel])
@@ -341,6 +341,7 @@ class Scan(Experiment):
             idxs = np.asarray(target_idx)
         else:
             idxs = None
+            plot_data = self.dsdata
 
         # Saving data
         if do_save:
@@ -366,10 +367,14 @@ class Scan(Experiment):
         else:
             fpath = None
 
-        hop = Hops(self._data, self._idxs, self.name, self.date)
+        data = self._data
+        if "time(s)" not in data.keys():
+            data["time(s)"] = np.cumsum(data["dt(s)"])
+
+        hop = Hops(data, self._idxs, self.name, self.date)
         hop.plot(sel, fname = fpath, do_annotate = not self.is_it)
 
-    def plot_approach(self, location = None):
+    def plot_approach(self, location = None, relative = True):
         """Plots approach of a scan
 
         Normally, we don't care about an approach of a scan, but occasionaly
@@ -389,21 +394,33 @@ class Scan(Experiment):
         x_ax = [x_ax - np.min(x_ax)]
         y_ax = []
         y_lab = []
+        t =  np.cumsum(data["dt(s)"][sel])
 
         try:
-            y_ax.append(data["Current1(A)"][sel])
-            y_lab.append("Current1(A)")
+            y = data["Current1(A)"][sel]*1e9
+            if relative:
+                y , _= mathops.scale_by_init(t, y)
+                y_lab.append(r"$I_{norm}\ (-)$")
+            else:
+                y_lab.append(r"$I\ (nA)$")
+            y_ax.append(y)
         except KeyError as e:
             pass
 
         try:
-            y_ax.append(data["LockinPhase"][sel])
-            y_lab.append("LockinPhase")
+            y = data["LockinPhase"][sel]
+            y = data["LockinAmplitude"][sel]
+            if relative:
+                y , _= mathops.scale_by_init(t, y)
+                # y_lab.append(r"$\theta_{norm}$")
+                y_lab.append(r"$V_{rel}\ (-)$")
+            else:
+                y_lab.append(r"$\theta\ (\degree)$")
+            y_ax.append(y)
         except KeyError as e:
             pass
 
-        x_lab = ["Z(um)"]# ["time(s)"]
-
+        x_lab = [r"$Z\ (um)$"]# ["time(s)"]
         fpath = self.get_fpath()
         fpath = utils.make_fname(fpath, "_approach{}".format(loc_str), ext = ".png")
         plots.plot_generic(x_ax, y_ax, x_lab, y_lab, fname = fpath)
@@ -743,4 +760,5 @@ class Scan(Experiment):
             self.plot_slices(   X, Y, Z_tilt, n_slices, thickness, zrange, clip,
                                 scaleby, center, n_levels, descriptor, Z_aux,
                                 adjust)
-        surface.plot_surface_contours( X, Y, Z_corr, z_lab, self.get_fpath(), center)
+        surface.plot_surface_contours( X, Y, Z_corr, z_lab, self.get_fpath(),
+                                       center, n_levels)
