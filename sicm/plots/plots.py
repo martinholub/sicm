@@ -22,6 +22,7 @@ def _set_rcparams(ticks = False, style = "default"):
 
     params = {  "font.family": "serif",
                 "font.weight": "normal",
+                "font.size": 12,
                 "xtick.labelsize": 12,
                 "ytick.labelsize": 12,
                 "xtick.bottom": True,
@@ -220,7 +221,7 @@ def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = 
 
     if fmts is None:
         fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."])
-        fmts_prod = itertools.product([":", "--", "-."], list("ygrbmck"))
+        # fmts_prod = itertools.product([":", "--", "-."], list("ygrbmck"))
         fmts = ["".join(x) for x in fmts_prod]
 
     if len(x_labs) <= len(Xs):

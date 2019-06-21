@@ -271,7 +271,7 @@ def _plot_surface_contours( x, y, z, z_lab = "Z", ax = None, title = None,
 
 def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
                 fname = None, cbar_lims = (None, None), center = True,
-                n_levels = 10, z_aux = None):
+                n_levels = 10, z_aux = None, cmap = "afmhot"):
     """Render 2D filled contour plot with triangulation
 
     Parameters
@@ -309,7 +309,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
             fmt = "%.2e" if (np.max(np.abs(z)) < 1e-3 or np.min(np.abs(z)) > 1e3) else "%.3f"
             if any(cl is None for cl in cbar_lims):
                 # Option 2: Variable colorbar, but better contrast for each slice
-                conts = plot_contour(ax, x, y, z, levels = n_levels)
+                conts = plot_contour(ax, x, y, z, levels = n_levels, cmap = cmap)
                 cbar = fig.colorbar(conts, ticks = conts.levels, format = fmt, drawedges = False)
                 # cbar.set_clim(*cbar_lims) # this appears not helpful
             else:
@@ -321,7 +321,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
                     levels_cbar = np.linspace(z.min(), z.max(), n_levels)
                 norm = mpl.colors.Normalize(vmin = cbar_lims[0], vmax = cbar_lims[1], clip = True)
                 conts = plot_contour(ax, x, y, z, norm = norm, levels = levels_conts,
-                                    z_aux = z_aux)
+                                    z_aux = z_aux, cmap = cmap)
                 cbar = make_colorbar(fig, conts.cmap, fmt, levels_cbar, *cbar_lims)
 
     cbar.ax.set_ylabel(z_lab)
@@ -361,7 +361,8 @@ def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = False, n_
 
     # Filled countour with triangulation
     ax = fig.add_subplot(2, 2, 1)
-    plot_slice(x, y, z, z_lab, ax, center = center, n_levels= n_levels)
+    plot_slice( x, y, z, z_lab, ax, center = center, n_levels = n_levels,
+                cmap = "gray")
 
     # Surface in 3D projection
     ax = fig.add_subplot(2, 2, 2, projection='3d')

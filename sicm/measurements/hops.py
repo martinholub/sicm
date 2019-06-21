@@ -110,6 +110,8 @@ class Hops(object):
             try:
                 this_color = fmt[1:]
                 this_style = fmt[0]
+                if k == "Z(um)":
+                    v -= np.min(v)
                 axs[i].plot(data_[xkey], v, ls = this_style, c = this_color,
                             label = k, alpha = .5)
 
@@ -122,8 +124,8 @@ class Hops(object):
                 if i == 0: axs[i].set_xlabel(xkey)
                 axs[i].set_ylabel(k, color = this_color)
                 axs[i].tick_params("y", colors = this_color)
-                axs[i].grid(axis = "y", color = this_color,
-                            alpha = .3, linewidth = .5, linestyle = ":")
+                # axs[i].grid(axis = "y", color = this_color,
+                #             alpha = .3, linewidth = .5, linestyle = ":")
                 h, l = axs[i].get_legend_handles_labels()
                 handles.extend(h)
                 labels.extend(l)
@@ -131,7 +133,7 @@ class Hops(object):
             except KeyError as e:
                 plot_mock(axs[i])
         # Combine legends and show.
-        ax.legend(handles, labels, bbox_to_anchor = (1., 1.), frameon = True)
+        # ax.legend(handles, labels, bbox_to_anchor = (.6, 1.), frameon = True)
 
         if fname is not None:
             utils.save_fig(fname)

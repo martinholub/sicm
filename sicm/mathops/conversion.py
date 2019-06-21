@@ -2,6 +2,12 @@ import numpy as np
 import pandas as pd
 import os
 from sicm.utils import utils
+from sicm.models.temperature import TemperatureModel
+
+def get_tm_fun():
+    tm = TemperatureModel(*tuple([1] * 5))
+    fun, _ = tm._fit_wrapper("predict")
+    return fun
 
 def get_polyfun():
     def polyfun(x, params):
@@ -19,7 +25,9 @@ def convert_measurements(data, fun = None, params = None):
     if params is None:
         try:
             pwd = os.getcwd().replace("\\notebooks", "")
-            pth = os.path.join(pwd, "data/s9r004.json")
+            # s12r003.json includes Soret effect
+            # use s9r004.json for other cases.
+            pth = os.path.join(pwd, "data/s12r003.json")
             d = utils.load_dict(pth)
             params = d["fit"]["coeff (mean)"]
         except Exception as e:
@@ -28,6 +36,7 @@ def convert_measurements(data, fun = None, params = None):
     # Function is a simple polynomial
     if fun is None:
         fun = get_polyfun()
+        # fun = get_tm_fun()
     # Apply function on flattened array and reshape back
     in_shape = data.shape
     val = fun(data.flatten(), params)

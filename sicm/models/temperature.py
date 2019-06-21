@@ -316,7 +316,8 @@ class TemperatureModel(Model):
         if isinstance(value, (list, tuple, np.ndarray)):
             assert all([v > 1e-3 for v in value]), msg
         else:
-            assert value > 1e-3, msg
+            if value is not None:
+                assert value > 1e-3, msg
             value = [value]
         self._r_sub = value
 
