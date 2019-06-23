@@ -192,7 +192,7 @@ class GaussianBeam(Model):
 
     def _fit_wrapper(self):
         """"Fit convenience wrapper"""
-        guess = [0.5, 50e-6]
+        guess = [1e-3, 50e-6]
         def _gaussian_beam_model(x, *params):
             """Fit gaussian beam model to an image of focal spot
 
@@ -213,8 +213,18 @@ class GaussianBeam(Model):
 
         return _gaussian_beam_model, guess
 
-    def fit(self, *args, **kwargs):
-        self._fit(*args, **kwargs)
+    def remove_saturated(self, sat_thresh = np.inf):
+        keep = self.y < sat_thresh
+        self.y = self.y[keep]
+        self.x = self.x[keep]
+
+    def remove_edges(self, edge_thresh = np.inf):
+        keep = np.abs(self.x) < edge_thresh
+        self.y = self.y[keep]
+        self.x = self.x[keep]
+
+    def fit_model(self, *args, **kwargs):
+        self.fit(*args, **kwargs)
 
     def plot(self, fname = None):
         """Plot data

@@ -61,9 +61,13 @@ class Scan(Experiment):
         if not y_trim: y_trim = None
         if not x_trim: x_trim = None
 
+        X = np.squeeze(data["X(um)"])
+        Y = np.squeeze(data["Y(um)"])
+
+        self.x_center = np.nanmean(X)
+        self.y_center = np.nanmean(Y)
+
         if y_trim or x_trim is not None:
-            X = np.squeeze(data["X(um)"])
-            Y = np.squeeze(data["Y(um)"])
 
             if x_trim is None:
                 keep_idx = [True]*len(X)
@@ -219,11 +223,16 @@ class Scan(Experiment):
             dsdata = self.dsdata # work with downsampled data
             x, y = location
             x_step, y_step = self._calculate_step_size()
-            x_sel = np.logical_and( dsdata["X(um)"] > x - x_step / 3,
-                                    dsdata["X(um)"] < x + x_step / 3)
-            y_sel = np.logical_and( dsdata["Y(um)"] > y - y_step / 3,
-                                    dsdata["Y(um)"] < y + y_step / 3)
-            xy_sel = np.logical_and(x_sel, y_sel)
+
+            divisor = 2.0
+            xy_sel = False
+            while np.sum(xy_sel) < 1:
+                x_sel = np.logical_and( dsdata["X(um)"] > x - x_step / divisor,
+                                        dsdata["X(um)"] < x + x_step / divisor)
+                y_sel = np.logical_and( dsdata["Y(um)"] > y - y_step / divisor,
+                                        dsdata["Y(um)"] < y + y_step / divisor)
+                xy_sel = np.logical_and(x_sel, y_sel)
+                divisor += 0.25
             approach_lineno = np.unique(dsdata["LineNumber"][xy_sel])
             if len(approach_lineno) > 1:
                 msg =   "Found {} approaches in selected location. Picking one randomly."\
@@ -248,6 +257,9 @@ class Scan(Experiment):
     def _remove_last_datapoint(self, X, Y, Z):
         # Remove last point if the data was not trimmed.
         was_trimmed = any([False if x is None else True for x in (self.y_trim, self.y_trim)])
+        # Usually you actually want ot trim, unless you clip fro the end...
+        # TODO: figure out a smart way how to include this condition
+        was_trimmed = False
         if not self.is_constant_distance and not was_trimmed:
             X, Y, Z = X[:-1], Y[:-1], Z[:-1]
         return X, Y, Z
@@ -374,7 +386,7 @@ class Scan(Experiment):
         hop = Hops(data, self._idxs, self.name, self.date)
         hop.plot(sel, fname = fpath, do_annotate = not self.is_it)
 
-    def plot_approach(self, location = None, relative = True):
+    def plot_approach(self, location = None, relative = True, convert = False):
         """Plots approach of a scan
 
         Normally, we don't care about an approach of a scan, but occasionaly
@@ -394,13 +406,24 @@ class Scan(Experiment):
         x_ax = [x_ax - np.min(x_ax)]
         y_ax = []
         y_lab = []
-        t =  np.cumsum(data["dt(s)"][sel])
+
+        # If you need to impose some criteria on x,y data
+        # sel2 = np.logical_and(x_ax[0] < 0.7, x_ax[0] > 0.01)
+        sel2 = [True] * len(x_ax[0])
+        x_ax = [x_ax[0][sel2]]
+        dt = data["dt(s)"][sel]
 
         try:
-            y = data["Current1(A)"][sel]*1e9
+            y = data["Current1(A)"][sel]
             if relative:
-                y , _= mathops.scale_by_init(t, y)
-                y_lab.append(r"$I_{norm}\ (-)$")
+                _, scaler = mathops.scale_by_init(np.cumsum(dt), y)
+                y = y/scaler
+                y = y[sel2]
+                y_lab_ = r"$I_{norm}\ (-)$"
+                if convert:
+                    y = convert_measurements(y)
+                    y_lab_ = r"$\Delta T [K]$"
+                y_lab.append(y_lab_)
             else:
                 y_lab.append(r"$I\ (nA)$")
             y_ax.append(y)
@@ -411,8 +434,8 @@ class Scan(Experiment):
             y = data["LockinPhase"][sel]
             y = data["LockinAmplitude"][sel]
             if relative:
-                y , _= mathops.scale_by_init(t, y)
-                # y_lab.append(r"$\theta_{norm}$")
+                y , _= mathops.scale_by_init(np.cumsum(dt), y)
+                                # y_lab.append(r"$\theta_{norm}$")
                 y_lab.append(r"$V_{rel}\ (-)$")
             else:
                 y_lab.append(r"$\theta\ (\degree)$")
@@ -420,9 +443,13 @@ class Scan(Experiment):
         except KeyError as e:
             pass
 
+
         x_lab = [r"$Z\ (um)$"]# ["time(s)"]
         fpath = self.get_fpath()
-        fpath = utils.make_fname(fpath, "_approach{}".format(loc_str), ext = ".png")
+        suffix = "_approach{}".format(loc_str)
+        if convert:
+            suffix += "_T"
+        fpath = utils.make_fname(fpath, suffix, ext = ".png")
         plots.plot_generic(x_ax, y_ax, x_lab, y_lab, fname = fpath)
 
     def plot_slices(self, X, Y, tilt, n_slices = 10, thickness = .9,
@@ -755,6 +782,8 @@ class Scan(Experiment):
         Z_corr, Z_tilt = analysis.level_plane(  X, Y, Z, True, is_interactive,
                                                 z_lab = z_lab)
 
+        # Obtain center from untrimmed data
+        center = (self.x_center, self.y_center) if center else None
         if plot_slices:
             Z_aux = Z_corr if overlay else None
             self.plot_slices(   X, Y, Z_tilt, n_slices, thickness, zrange, clip,

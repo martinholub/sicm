@@ -411,8 +411,8 @@ class Laser(Model):
             return y
         return _relu_fit, guess
 
-    def fit(self, *args, **kwargs):
-        self._fit(*args, **kwargs)
+    def fit_model(self, *args, **kwargs):
+        self.fit(*args, **kwargs)
 
     def plot(self, fname = None):
         """Plot data

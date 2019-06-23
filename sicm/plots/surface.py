@@ -243,11 +243,11 @@ def _plot_surface_contours( x, y, z, z_lab = "Z", ax = None, title = None,
     else:
         fig = ax.get_figure()
 
-    if center:
+    if center is not None:
         if z_lab == "Z(um)" or z_lab.lower().startswith("z"):  # avoid centering current!
             z = z - np.nanmin(z)
-        x = x - np.nanmean(x)
-        y = y - np.nanmean(y)
+        x = x - center[0]
+        y = y - center[1]
 
     trsf = _plot_surface(ax, x, y, z, cmap = "binary")
     ax.set_xlabel('X(um)')
@@ -270,7 +270,7 @@ def _plot_surface_contours( x, y, z, z_lab = "Z", ax = None, title = None,
         plt.close('all')
 
 def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
-                fname = None, cbar_lims = (None, None), center = True,
+                fname = None, cbar_lims = (None, None), center = None,
                 n_levels = 10, z_aux = None, cmap = "afmhot"):
     """Render 2D filled contour plot with triangulation
 
@@ -284,7 +284,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
         Full path to an image to be created.
     cbar_lims: tuple
         2 values, limits of colorbar. If None, limits taken from data.
-    center: bool
+    center: None or tuple of two
         Center x,y values around 0 and shift z to 0-origin?
     n_levels:
         Number of levels for contour plot
@@ -296,11 +296,11 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
     else:
         fig = ax.get_figure()
 
-    if center:
+    if center is not None:
         if z_lab == "Z(um)" or z_lab.lower().startswith("z"):  # avoid centering current!
             z = z - np.nanmin(z)
-        x = x - np.nanmean(x)
-        y = y - np.nanmean(y)
+        x = x - center[0]
+        y = y - center[1]
 
     if np.any(~np.isfinite(z)): # handle (expected) nans in data gracefully
         raise NotImplementedError("Sparse measurements not implemented!")
@@ -341,7 +341,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
     if len(plt.get_fignums()) > 3:
         plt.close('all')
 
-def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = False, n_levels = 10):
+def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = None, n_levels = 10):
     """Plot 3D surface contours
 
     Parameters
@@ -352,7 +352,7 @@ def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = False, n_
         z-axis label
     fpath: str
         A full-path to an image that will be created.
-    center: bool
+    center: None or tuple of two
         Centers x,y around 0 and shifts origin of z to 0.
     """
     plt.style.use("seaborn")
