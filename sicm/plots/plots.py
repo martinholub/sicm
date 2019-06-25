@@ -14,7 +14,7 @@ from matplotlib.ticker import FormatStrFormatter
 from sicm import analysis
 from sicm.utils import utils
 
-def _set_rcparams(ticks = False, style = "default"):
+def _set_rcparams(ticks = False, style = "pub"):
     if ticks:
         plt.style.use("seaborn-ticks")
     else:
@@ -29,7 +29,9 @@ def _set_rcparams(ticks = False, style = "default"):
                 "xtick.direction": "in",
                 "ytick.left": True,
                 "ytick.direction": "in",
-                "savefig.dpi": 600}
+                "savefig.dpi": 600,
+                "savefig.format": "png"
+                }
 
     params_present = {
         "font.weight": "bold",
@@ -40,8 +42,17 @@ def _set_rcparams(ticks = False, style = "default"):
         "axes.labelweight": "bold",
     }
 
+    params_pub = {
+        "savefig.format": "svg",
+    }
+
     if style.lower().startswith("pres"):
         params.update(params_present)
+    elif style.lower().startswith("pub"):
+        params.update(params_pub)
+    else:
+        pass
+
     mpl.rcParams.update(params)
 
 def plot_mock(ax):
@@ -113,7 +124,7 @@ def plot_sicm(  result, sel, title = "SICM Plot", exp_name = None,
     assert len(x_keys) == len(y_keys)
 
     # Set-up Plotting
-    plt.style.use("seaborn-white")
+    # plt.style.use("seaborn-white")
     nrows = int(np.ceil(len(x_keys)/2))
     fig, axs = plt.subplots(nrows = nrows, ncols = 2, figsize = (10, 5 * nrows))
     axs = axs.flatten()
@@ -127,7 +138,7 @@ def plot_sicm(  result, sel, title = "SICM Plot", exp_name = None,
     fname_lockin = None
     if fname is not None:
         utils.save_fig(fname)
-        fname_lockin = utils.make_fname(fname, "Lockin", ext = ".png")
+        fname_lockin = utils.make_fname(fname, "Lockin")
 
     # Plot also results from lockin
     subkeys =  [("time(s)", "LockinPhase"), ("time(s)", "LockinAmplitude")]
@@ -173,7 +184,7 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
              "time(s)": "time [s]",
              "grid": "grid"}
 
-    plt.style.use("seaborn-white")
+    # plt.style.use("seaborn-white")
     fig, axs = plt.subplots(nrows, ncols, squeeze = False,
                             figsize = (ncols*6.4, nrows*4.8))
     axs = axs.flatten()

@@ -350,7 +350,7 @@ class LockIn(object):
         # Combine legends and show.
         h1, l1 = ax.get_legend_handles_labels()
         ax.legend(h1+h2, l1+l2, bbox_to_anchor = (0.9, .35), frameon = True)
-        utils.save_fig("oscilator_model_fit", ext = ".png")
+        utils.save_fig("oscilator_model_fit")
         plt.show()
 
     def _resonator_model(f, *params):

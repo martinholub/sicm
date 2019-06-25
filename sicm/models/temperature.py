@@ -643,4 +643,4 @@ class TemperatureModel(Model):
 
         suffix = "" if not plot_approach else "_app"
         if fname is not None:
-            utils.save_fig(fname, suffix, ".png")
+            utils.save_fig(fname, suffix)

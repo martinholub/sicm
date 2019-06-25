@@ -1,13 +1,15 @@
 import time
 import matplotlib.pyplot as plt
+from matplotlib import rcParams as rcparams
 import pandas as pd
 import os
 import re
 import json
 
-def make_fname(fname, suffix = "", ext = ".pdf", subdirname = ""):
+def make_fname(fname, suffix = "", ext = "", subdirname = ""):
     # Append suffix to filename and remove non-desirable characters
-    basename = os.path.splitext(os.path.basename(fname))[0] + suffix
+    basename, ext_ = os.path.splitext(os.path.basename(fname))
+    basename += suffix
     basename = basename.replace(" ", "_").replace("/", "").replace(":", "").replace(".", "")
     basename = basename.replace("\\", "").replace("@", "_")
     # Obtain absolute location of parent direcotry and normalize
@@ -17,13 +19,20 @@ def make_fname(fname, suffix = "", ext = ".pdf", subdirname = ""):
     if not os.path.isdir(subdir_path):
         os.makedirs(subdir_path)
 
-    fname = os.path.normpath(os.path.join(subdir_path, basename + ext))
+    if ext:
+        ext_ = ext
+
+    if not ext_.replace(".", "").startswith(("png", "pdf", "eps", "svg", "jp", "tif")):
+        ext_ = ".svg" #"" # "." + rcparams["savefig.format"]
+
+    fname = os.path.normpath(os.path.join(subdir_path, basename + ext_))
     return fname
 
-def save_fig(fname, suffix = "", ext = ".pdf"):
+def save_fig(fname, suffix = "", ext = ""):
     """Helper to save figures"""
-    if not ext.startswith("."):
-        ext = "." + ext
+    if ext:
+        if not ext.startswith("."):
+            ext = "." + ext
 
     fname = make_fname(fname, suffix, ext)
     plt.savefig(fname, dpi = 600, bbox_inches = "tight")

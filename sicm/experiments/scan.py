@@ -358,7 +358,7 @@ class Scan(Experiment):
         # Saving data
         if do_save:
             fpath = self.get_fpath()
-            fname = utils.make_fname(fpath, "_sicmPlot", ext = ".png")
+            fname = utils.make_fname(fpath, "_sicmPlot")
         else:
             fname = None
 
@@ -449,7 +449,7 @@ class Scan(Experiment):
         suffix = "_approach{}".format(loc_str)
         if convert:
             suffix += "_T"
-        fpath = utils.make_fname(fpath, suffix, ext = ".png")
+        fpath = utils.make_fname(fpath, suffix, ext = ".svg")
         plots.plot_generic(x_ax, y_ax, x_lab, y_lab, fname = fpath)
 
     def plot_slices(self, X, Y, tilt, n_slices = 10, thickness = .9,

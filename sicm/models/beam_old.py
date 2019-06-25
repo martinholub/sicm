@@ -33,9 +33,8 @@ class GaussianBeam(Model):
     """
 
     def __init__(self, datadir, exp_name, is_debug = False):
-        self.img_container = self._load_image_contaner(datadir, exp_name)
+        self.img = self._load_image(datadir, exp_name)
         self.is_debug = is_debug
-        self._assign_image()
         super(GaussianBeam, self).__init__()
 
     @property
@@ -52,16 +51,18 @@ class GaussianBeam(Model):
             val = np.nan
         return val
 
-    def _load_image_contaner(self, datadir, exp_name):
-        """Load Image Contaienr
+    def _load_image(self, datadir, exp_name):
+        """Load Image as GrayScale values
+
+        TODO: Addapt this for raw tiffs once available
         """
         self.data_dir = datadir
         self.exp_name = exp_name
-        img_container = load_image_container(datadir, exp_name)
-        return img_container
-
-    def _assign_image(self):
-        self.img = self.img_container.intensity_image
+        try:
+            # img = io.rgb2gray(io.load_image(datadir, exp_name))
+        except Exception as e:
+            img = np.random.randn(640, 480)
+        return img
 
     def _filt(self, size = 10):
         """Filter the image with moving average filter
@@ -96,7 +97,6 @@ class GaussianBeam(Model):
         except Exception as e:
             self.thresh()
             data = self.img_binary
-        self.mask = data
         mask = np.nonzero(data)
         self.y_c = np.int(np.mean(mask[0]))
         self.x_c = np.int(np.mean(mask[1]))

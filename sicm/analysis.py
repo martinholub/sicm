@@ -503,7 +503,7 @@ class Fitter(object):
         h1, l1 = ax.get_legend_handles_labels()
         h2, l2 = ax2.get_legend_handles_labels()
         ax.legend(h1+h2, l1+l2, bbox_to_anchor = (0.75, 0.55), frameon = True)
-        utils.save_fig("lorentzian_fit", ext = ".png")
+        utils.save_fig("lorentzian_fit")
         plt.show()
 
     def process(self):

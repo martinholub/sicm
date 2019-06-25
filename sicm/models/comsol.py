@@ -116,7 +116,7 @@ class ComsolModel(Model):
         nrows = np.int(np.ceil(len(uniqs) / 2))
         ncols = 2 if len(uniqs) > 1 else 1
         fig, axs = plt.subplots(nrows = nrows, ncols = ncols,
-                                figsize = (ncols * 5, nrows * 4))
+                                figsize = (ncols * 4, nrows * 4))
         try:
             axs = axs.flatten()
         except AttributeError as e:
@@ -137,7 +137,7 @@ class ComsolModel(Model):
                 # Attempt to visualize experiments with multiple variables
                 x = []
                 y = []
-                fmts_prod = product([":", "--", "-."], list("ygrbmck"))
+                fmts_prod = product(list("kbgrymc"), [":", "--", "-."])
                 fmts_buff = ["".join(x) for x in fmts_prod]
                 fmts = []
                 legend = []
@@ -305,7 +305,6 @@ class ComsolModel(Model):
                     legend += [r"$z/d=1$"]
             except Exception as e:
                 pass # Do not add line
-
 
             plots.plot_generic(x, y, x_lab, y_lab, legend = legend, ax = axs[i],
                                 fmts = fmts, text = ax_txt, **kwargs) #(0.1, 0.90)

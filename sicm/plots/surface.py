@@ -263,7 +263,7 @@ def _plot_surface_contours( x, y, z, z_lab = "Z", ax = None, title = None,
         ax.set_title(title)
     # Save figure
     if fname is not None:
-        utils.save_fig(fname, ext = ".png")
+        utils.save_fig(fname)
 
     # Explicitly close all figures if already too many;
     if len(plt.get_fignums()) > 3:
@@ -335,7 +335,7 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
         ax.set_title(title)
     # Save figure
     if fname is not None:
-        utils.save_fig(fname, ext = ".png")
+        utils.save_fig(fname)
 
     # Explicitly close all figures if already too many;
     if len(plt.get_fignums()) > 3:
@@ -374,6 +374,6 @@ def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = None, n_l
         if z_lab.lower().startswith("cu"):
             appex += "Current"
         fname = utils.make_fname(fpath, appex)
-        utils.save_fig(fname, ext = ".png")
+        utils.save_fig(fname)
     # Show
     plt.show()
