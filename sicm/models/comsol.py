@@ -3,14 +3,13 @@ import numpy as np
 import pandas as pd
 import timeit
 from scipy.optimize import curve_fit
-from itertools import product
-
 
 from sicm import io
 from sicm.plots import plots
 from sicm.utils import utils
 from .model import Model
 from sicm.sicm import Approach, ApproachList
+from sicm.mathops import mathops
 
 import matplotlib.pyplot as plt
 
@@ -97,8 +96,100 @@ class ComsolModel(Model):
             valid_keys = [k for k in valid_keys if k in validator]
             if len(valid_keys) == 1:
                 return valid_keys[0], None
+            elif len(valid_keys) == 0:
+                return None, None
             else:
                 return valid_keys[1], valid_keys[0]
+
+    def _assign_annotation(self, var_name, var, secondary_var_name, sec_var, pipette_diameter):
+        if secondary_var_name.lower().startswith("t"):
+            txt = "T = {:.1f} K".format(sec_var)
+            if var_name.lower().startswith("p"):
+                ax_txt = "P = {:.2f} $W/cm^2$".format(var * 1e-4)
+            elif var_name.lower().startswith("r"):
+                ax_txt = r"$r_{{sub}}$ = {:.1f}$\cdot d$".format(var / (pipette_diameter * 1e-9))
+            else:
+                ax_txt = None
+
+        elif secondary_var_name.lower().startswith(("r")):
+            if sec_var > 1e-6:
+                txt = r"$r_{{sub}}$ = {:.1f}$\cdot d$".format(sec_var / (pipette_diameter * 1e-9))
+            else:
+                txt = r"$r_{{sub}}$ = {:.1f}$\cdot d$".format(sec_var / (pipette_diameter * 1e-9))
+
+            if var_name.lower().startswith("t"):
+                ax_txt = "T = {:.1f} K".format(var)
+            elif var_name.lower().startswith("r"):
+                ax_txt = r"$r_{{sub}}$ = {:.1f}$\cdot d$".format(var / (pipette_diameter * 1e-9))
+            elif var_name.lower().startswith("p"):
+                ax_txt = "P = {:.2f} $W/cm^2$".format(var * 1e-4)
+            else:
+                ax_txt = None
+
+        elif secondary_var_name.lower().startswith(("a")):
+            txt = r"$AR={:.2f}$".format(sec_var)
+            if var_name.lower().startswith("t"):
+                ax_txt = "T = {:.1f} K".format(var)
+            elif var_name.lower().startswith("r"):
+                ax_txt = r"$r_{{sub}}$ = {:.1f}$\cdot d$".format(var / (pipette_diameter * 1e-9))
+            else:
+                ax_txt = None
+        elif secondary_var_name.lower().startswith(("p")):
+            if var > 1:
+                ax_txt = "T = {:.1f} K".format(var)
+            else:
+                ax_txt = r"$r_{{sub}}$ = {:.1f}$\cdot d$".format(var / (pipette_diameter * 1e-9))
+            txt = "P = {:.2f} $W/cm^2$".format(sec_var * 1e-4)
+
+        elif secondary_var_name.lower().startswith(("s")):
+            txt = r"$S_T={:.3f}$".format(sec_var)
+            if var_name.lower().startswith("t"):
+                ax_txt = "T = {:.1f} K".format(var)
+            elif var_name.lower().startswith("r"):
+                ax_txt = r"$r_{{sub}}$ = {:.1f}$\cdot d$".format(var / (pipette_diameter * 1e-9))
+            else:
+                ax_txt = None
+        else:
+            txt = ax_txt = None
+        return txt, ax_txt
+
+    def _add_experiment(self, x, y, legend, fmts, title, window_size, pipette_diameter):
+        try:
+            # Assign x-axis, set origin to 0 and scale by pipette diameter
+            x_ = self.approach.dsdata["Z(um)"]
+            x_ = x_ - np.min(x_)
+            x_ = x_ / (pipette_diameter * 1e-3)
+            x += [x_]
+            # Assign y-axis, scale by bulk value (robustly)
+            y_ = self.approach.dsdata["Current1(A)"]
+            t_ = np.cumsum(self.approach.dsdata["dt(s)"])
+            y_, _ = mathops.scale_by_init(t_, y_, q = 0.5)
+            y += [y_]
+
+            # Add descriptive fields
+            if not isinstance(legend, (list, tuple)): legend = [legend]
+            legend += ["experiment"]
+            fmts += ["-gray"]
+            title = title + "\n" + \
+                    "Experiment: {} @ {}".format(self.approach.name, self.approach.date)
+
+            # Implement moving Aaverage on experimental data
+            if window_size > 1:
+                x[-1], y[-1] = mathops.rolling_mean(x[-1], y[-1], window_size)
+                movav_txt = "exp., N = {:d}".format(window_size)
+                legend[-1] = movav_txt
+
+            # Send experimental data to the back for plotting
+            x = x[::-1]
+            y = y[::-1]
+            fmts = fmts[::-1]
+            legend = legend[::-1]
+
+        except Exception as e:
+            # Approach most likely not assigned, don't try.
+            pass
+        return x, y, legend, fmts, title
+
 
     def plot_grid(self, pipette_diameter = 220, show_experiment = True, variable = None,
                     col = 2, offset = 0, add_unity_line = False, window_size = 0,
@@ -111,7 +202,7 @@ class ComsolModel(Model):
         var_name, secondary_var_name = self._select_variable(variable)
         try:
             uniqs = self.comsol.data[var_name].unique()
-        except KeyError as e:
+        except Exception as e: # Key or value error
             uniqs = [None]
         nrows = np.int(np.ceil(len(uniqs) / 2))
         ncols = 2 if len(uniqs) > 1 else 1
@@ -137,90 +228,59 @@ class ComsolModel(Model):
                 # Attempt to visualize experiments with multiple variables
                 x = []
                 y = []
-                fmts_prod = product(list("kbgrymc"), [":", "--", "-."])
-                fmts_buff = ["".join(x) for x in fmts_prod]
+                fmts_buff = plots.get_fmts()
                 fmts = []
                 legend = []
                 uniqs_second = self.comsol.data[secondary_var_name].unique()
                 # Loop over subsets for whic the secondary variable is unique
                 for j, sec_var in enumerate(uniqs_second):
-                    sel_ = np.logical_and(self.comsol.data[secondary_var_name] == sec_var, sel)
-                    # De everything as if you are dealing with simple dataset
-                    y_sec = np.abs(self.comsol.data[sel_].iloc[:, col].values.flatten())
-                    y_sec = y_sec / y_sec[-1]
-                    sel2 = y_sec >= 0.97
-                    y_sec = [y_sec[sel2]]
-                    x_sec = self.comsol.data["d (m)"][sel_].values.flatten()[sel2]
-                    if offset is None:
-                        offset = self.comsol.data["d (m)"][sel].unique().min()
-                    x_sec -= offset
-                    x_sec = [x_sec / (pipette_diameter * 1e-9)]
-                    # Grow the list of items for plotting
-                    x += x_sec
-                    y += y_sec
                     try:
-                        fmts += [fmts_buff[j]]
+                        sel_ = np.logical_and(self.comsol.data[secondary_var_name] == sec_var, sel)
+                        # De everything as if you are dealing with simple dataset
+                        y_sec = np.abs(self.comsol.data[sel_].iloc[:, col].values.flatten())
+                        x_sec = self.comsol.data["d (m)"][sel_].values.flatten() / (pipette_diameter * 1e-9)
+
+                        # scaler = mathops.find_bulk_val(x_sec, y_sec)
+                        scaler = y_sec[-1]
+                        y_sec = y_sec / scaler
+
+                        sel2 = y_sec >= 0.97
+                        y_sec = [y_sec[sel2]]
+                        x_sec = x_sec[sel2]
+
+                        if offset is None:
+                            offset = self.comsol.data["d (m)"][sel].unique().min()
+                        x_sec -= offset
+                        x_sec = [x_sec]
+                        # Grow the list of items for plotting
+                        x += x_sec
+                        y += y_sec
+                        try:
+                            fmts += [fmts_buff[j]]
+                        except Exception as e:
+                            pass
+
+                        txt, ax_txt = self._assign_annotation( var_name, var, secondary_var_name,
+                                                                sec_var, pipette_diameter)
+                        if len(uniqs_second) == 1:
+                            ax_txt += "\n" + txt
+                            txt = "model"
+                        legend += [txt]
                     except Exception as e:
-                        import pdb; pdb.set_trace()
-
-                    if secondary_var_name.lower().startswith("t"):
-                        txt = "T = {:.2f} K".format(sec_var)
-                        if var > 1e-6:
-                            ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
-                        else:
-                            ax_txt = r"$r_{{sub}}$={:.0f}$nm$".format(var * 1e9)
-
-                    elif secondary_var_name.lower().startswith(("r")):
-                        if sec_var > 1e-6:
-                            txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(sec_var * 1e6)
-                        else:
-                            txt = r"$r_{{sub}}$={:.0f}$nm$".format(sec_var * 1e9)
-
-                        if var_name.lower().startswith("t"):
-                            ax_txt = "T = {:.2f} K".format(var)
-                        elif var_name.lower().startswith("r"):
-                            ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
-                        elif var_name.lower().startswith("p"):
-                            ax_txt = "P = {:.2f} $W/cm^2$".format(var * 1e-4)
-                        else:
-                            ax_txt = None
-
-                    elif secondary_var_name.lower().startswith(("a")):
-                        txt = r"$AR={:.2f}$".format(sec_var)
-                        if var_name.lower().startswith("t"):
-                            ax_txt = "T = {:.2f} K".format(var)
-                        elif var_name.lower().startswith("r"):
-                            ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
-                        else:
-                            ax_txt = None
-                    elif secondary_var_name.lower().startswith(("p")):
-                        if var > 1e-6:
-                            ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
-                        else:
-                            ax_txt = r"$r_{{sub}}$={:.0f}$nm$".format(var * 1e9)
-
-                        ax_txt = "P = {:.2f} $mW/cm^2$".format(var * 1e-1)
-                    elif secondary_var_name.lower().startswith(("s")):
-                        txt = r"$S_T={:.3f}$".format(sec_var)
-                        if var_name.lower().startswith("t"):
-                            ax_txt = "T = {:.2f} K".format(var)
-                        elif var_name.lower().startswith("r"):
-                            ax_txt = r"$r_{{sub}}$={:.2f}$\mu m$".format(var * 1e6)
-                        else:
-                            ax_txt = None
-                    else:
-                        txt = ax_txt = None
-                    legend += [txt]
+                        pass
 
             else:
                 y = np.abs(self.comsol.data[sel].iloc[:, col].values.flatten())
+                x = self.comsol.data["d (m)"][sel].values.flatten()
                 # scale y-axis by bulk current value
                 ## here it is the last one obtained
-                y = y / y[-1]
+                scaler = y[-1]# mathops.find_bulk_val(x, y) # y[-1]
+                y = y / scaler
+
                 ## Plot just some data, for easier visualization
                 sel2 = y >= 0.97
                 y = [y[sel2]]
-                x = self.comsol.data["d (m)"][sel].values.flatten()[sel2]
+                x = x[sel2]
                 # Determine offset from data.
                 # This will be wrong by couple of nm if |offset - rUME| ~ 0
                 if offset is None:
@@ -229,12 +289,13 @@ class ComsolModel(Model):
                 # Scale x-axis by pipette diameter
                 x = [x / (pipette_diameter * 1e-9)]
 
-                if var_name.lower().startswith("t"):
-                    txt = "T = {:.1f} K".format(var)
-                elif var_name.lower().startswith(("r")):
-                    txt = r"$r_{{sub}}$={:.1f}$\mu m$".format(var * 1e6)
+                if var_name is not None:
+                    if var_name.lower().startswith("t"):
+                        txt = "T = {:.1f} K".format(var)
+                    elif var_name.lower().startswith(("r")):
+                        txt = r"$r_{{sub}}$ = {:.1f}$\mu m$".format(var * 1e6)
                 else:
-                    txt = None
+                    txt = "sim."
                 ax_txt = None
                 legend = [txt]
                 fmts = ["-k"]
@@ -243,51 +304,8 @@ class ComsolModel(Model):
             x_lab = [r"$z/d$"]
 
             if show_experiment:
-                try:
-                    # Assign x-axis, set origin to 0 and scale by pipette diameter
-                    x_ = self.approach.dsdata["Z(um)"]
-                    x_ = x_ - np.min(x_)
-                    x_ = x_ / (pipette_diameter * 1e-3)
-                    x += [x_]
-                    # Assign y-axis, scale by bulk value (robustly)
-                    y_ = self.approach.dsdata["Current1(A)"]
-                    t_ = np.cumsum(self.approach.dsdata["dt(s)"])
-                    y_ = y_ / np.quantile(y_[np.nonzero(t_ < 250e-3)[0]], 0.5)
-                    y += [y_]
-
-                    # Add descriptive fields
-                    legend += ["experiment"]
-                    fmts += ["-gray"]
-                    if i == 0:
-                        title = title + "\n" + \
-                                "Experiment: {} @ {}".format(self.approach.name, self.approach.date)
-
-                    # Implement moving Aaverage on experimental data
-                    if window_size > 1:
-                        ## opt1: Roll from beginning
-                        ## This is prefered because data is ordered far->close to surface
-                        y_temp = pd.Series(y[-1]).rolling(window = window_size).mean()
-                        x_temp = x[-1]
-                        ## opt2 : Roll from end
-                        ### Implementing this makes things tiny-tiny bit worse.
-                        # y_temp = pd.Series(y[-1][::-1]).rolling(window = window_size).mean()
-                        # x_temp = x[-1][::-1]
-                        # Apply changes
-                        y[-1] = y_temp.iloc[window_size-1:].values
-                        x[-1] = x_temp[window_size-1:]
-
-                        movav_txt = "exp., N = {:d}".format(window_size)
-                        legend[-1] = movav_txt
-
-                    # Send experimental data to the back for plotting
-                    x = x[::-1]
-                    y = y[::-1]
-                    fmts = fmts[::-1]
-                    legend = legend[::-1]
-
-                except Exception as e:
-                    # Approach most likely not assigned, don't try.
-                    pass
+                x, y, legend, fmts, title = \
+                    self._add_experiment(x, y, legend, fmts, title, window_size, pipette_diameter)
 
             try:
                 if add_unity_line == "y":
@@ -306,6 +324,14 @@ class ComsolModel(Model):
             except Exception as e:
                 pass # Do not add line
 
+            if "ax_txt" in kwargs.keys():
+                ax_txt = kwargs["ax_txt"]
+                _ = kwargs.pop("ax_txt", None)
+
+            if "legend" in kwargs.keys():
+                legend = kwargs["legend"]
+                _ = kwargs.pop("legend", None)
+
             plots.plot_generic(x, y, x_lab, y_lab, legend = legend, ax = axs[i],
                                 fmts = fmts, text = ax_txt, **kwargs) #(0.1, 0.90)
 
@@ -320,3 +346,30 @@ class ComsolModel(Model):
         else:
             fpath = os.path.join(self.comsol.datadir, self.comsol.name)
             utils.save_fig(fpath, self.comsol.date)
+
+    def plot_list(self, Xs, Ys, legend = [], window_size = 0, pipette_diameter = 30, **kwargs):
+        Xs_ = []; Ys_ = []
+        fmts_buff = plots.get_fmts()
+        fmts = []
+        title = "Comsol List"
+        for x, y, fmt in zip(Xs, Ys, fmts_buff):
+            y = y / y[-1]
+            ## Plot just some data, for easier visualization
+            sel2 = y >= 0.97
+            y = y[sel2]
+            x = x[sel2]
+            # Scale x-axis by pipette diameter
+            x = x / (pipette_diameter * 1e-9)
+            Xs_.append(x)
+            Ys_.append(y)
+            fmts.append(fmt)
+
+
+        Xs_, Ys_, legend, fmts, title = \
+                self._add_experiment(Xs_, Ys_, legend, fmts, title, window_size, pipette_diameter)
+
+        plots.plot_generic(Xs_, Ys_, ["$z/d$"], ["$I/I_{bulk}$"], legend = legend,
+                            fmts = fmts, **kwargs)
+        plt.suptitle(title, size = 10, y = 0.98)
+        fpath = os.path.join(self.comsol.datadir, self.comsol.name)
+        utils.save_fig(fpath, self.comsol.date)

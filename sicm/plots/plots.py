@@ -55,6 +55,12 @@ def _set_rcparams(ticks = False, style = "pub"):
 
     mpl.rcParams.update(params)
 
+def get_fmts():
+    fmts_prod = itertools.product([":", "--", "-."], list("ygrbmck"))
+    fmts_buff = ["".join(x) for x in fmts_prod]
+
+    return fmts_buff
+
 def plot_mock(ax):
     """Render a mock plot"""
     ax.text(x=0.5, y=0.5, s = "No Data Available",
@@ -219,9 +225,9 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
 
     plt.show()
 
-def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = None, fmts = None,
-                ax = None, text = None, text_loc = (0.1, 0.1), scale = None, ticks = False,
-                invert = None, **kwargs):
+def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = None,
+                fmts = None, ax = None, text = None, text_loc = (0.1, 0.1),
+                scale = None, ticks = False, invert = None,  **kwargs):
     """Generic ploting function
 
     This is an attempt of generic function that produces publication quality
@@ -271,10 +277,12 @@ def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = 
     if legend is not None and legend != "":
         if not isinstance(legend, (list, tuple)): legend = [legend]
         legend = ['\n'.join(wrap(l, 21)) if not l.startswith("$") else l for l in legend]
-        ncol = 2 if len(legend) > 5 else 1
+        ncol = 2 if len(legend) > 6 else 1
         ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
-                    borderaxespad = 1.1, ncol = ncol)
-        # bbox_to_anchor=(1.01,1), loc="upper left" # if you need the legend outside
+                    borderaxespad = 1.1, ncol = ncol,)
+                    # bbox_to_anchor=(1.01,1), loc="upper left")
+                     # if you need the legend outside)
+        #
     # elif len(Xs) > 1:
         # plt.legend(range(len(Xs)))
 
