@@ -153,7 +153,8 @@ class ComsolModel(Model):
             txt = ax_txt = None
         return txt, ax_txt
 
-    def _add_experiment(self, x, y, legend, fmts, title, window_size, pipette_diameter):
+    def _add_experiment(self, x, y, legend, fmts, title, window_size, pipette_diameter,
+                        scale_by_inf = True):
         try:
             # Assign x-axis, set origin to 0 and scale by pipette diameter
             x_ = self.approach.dsdata["Z(um)"]
@@ -163,15 +164,21 @@ class ComsolModel(Model):
             # Assign y-axis, scale by bulk value (robustly)
             y_ = self.approach.dsdata["Current1(A)"]
             t_ = np.cumsum(self.approach.dsdata["dt(s)"])
-            y_, _ = mathops.scale_by_init(t_, y_, q = 0.5)
+            if scale_by_inf:
+                sel = x_ > 2
+                scaler = mathops.find_bulk_val(x_[sel], y_[sel])
+            else:
+                _, scaler = mathops.scale_by_init(t_, y_, q = 0.5)
+
+            y_ = y_ / scaler
             y += [y_]
 
             # Add descriptive fields
             if not isinstance(legend, (list, tuple)): legend = [legend]
             legend += ["experiment"]
-            fmts += ["-gray"]
-            title = title + "\n" + \
-                    "Experiment: {} @ {}".format(self.approach.name, self.approach.date)
+            fmts += ["-silver"]
+            # title = title + "\n" + \
+            #         "Experiment: {} @ {}".format(self.approach.name, self.approach.date)
 
             # Implement moving Aaverage on experimental data
             if window_size > 1:
@@ -193,7 +200,7 @@ class ComsolModel(Model):
 
     def plot_grid(self, pipette_diameter = 220, show_experiment = True, variable = None,
                     col = 2, offset = 0, add_unity_line = False, window_size = 0,
-                    sup_text = None, **kwargs):
+                    sup_text = None, scale_by_inf = False, **kwargs):
         """Plot all numerical results on grid
 
         Displays result of numerically simulated approach at different temperatures.
@@ -240,8 +247,13 @@ class ComsolModel(Model):
                         y_sec = np.abs(self.comsol.data[sel_].iloc[:, col].values.flatten())
                         x_sec = self.comsol.data["d (m)"][sel_].values.flatten() / (pipette_diameter * 1e-9)
 
-                        # scaler = mathops.find_bulk_val(x_sec, y_sec)
-                        scaler = y_sec[-1]
+                        # Scaling often needs to be adjusted manually for respective approach curves.
+                        if scale_by_inf:
+                            sel3 = x_sec > 2
+                            scaler = mathops.find_bulk_val(x_sec[sel3], y_sec[sel3])
+                        else:
+                            scaler = y_sec[-1]
+
                         y_sec = y_sec / scaler
 
                         sel2 = y_sec >= 0.97
@@ -272,9 +284,14 @@ class ComsolModel(Model):
             else:
                 y = np.abs(self.comsol.data[sel].iloc[:, col].values.flatten())
                 x = self.comsol.data["d (m)"][sel].values.flatten()
+                x = x / (pipette_diameter * 1e-9)
                 # scale y-axis by bulk current value
                 ## here it is the last one obtained
-                scaler = y[-1]# mathops.find_bulk_val(x, y) # y[-1]
+                if scale_by_inf:
+                    sel3 = x > 2
+                    scaler = mathops.find_bulk_val(x[sel3], y[sel3])
+                else:
+                    scaler = y[-1]
                 y = y / scaler
 
                 ## Plot just some data, for easier visualization
@@ -287,7 +304,7 @@ class ComsolModel(Model):
                     offset = self.comsol.data["d (m)"][sel].unique().min()
                 x -= offset
                 # Scale x-axis by pipette diameter
-                x = [x / (pipette_diameter * 1e-9)]
+                x = [x]
 
                 if var_name is not None:
                     if var_name.lower().startswith("t"):
@@ -332,6 +349,7 @@ class ComsolModel(Model):
                 legend = kwargs["legend"]
                 _ = kwargs.pop("legend", None)
 
+            # ax_txt += "\n" + r"$r_{sub}$ = 5.4 $d_{tip}$"
             plots.plot_generic(x, y, x_lab, y_lab, legend = legend, ax = axs[i],
                                 fmts = fmts, text = ax_txt, **kwargs) #(0.1, 0.90)
 

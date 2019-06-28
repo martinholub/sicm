@@ -707,7 +707,7 @@ class Scan(Experiment):
                 fname = utils.make_fname(fpath_stds, "_" + str(np.int(slice_id + 1)))
                 surface.plot_slice(X, Y, slice_stds, "$\sigma_{norm}$",
                                 title = title, fname = fname,
-                                cbar_lims = cbar_lims_stds, center = False,
+                                cbar_lims = cbar_lims_stds, center = None,
                                 z_aux = Z_aux)
 
             # Plot also Surface measuremnets
@@ -784,6 +784,7 @@ class Scan(Experiment):
 
         # Obtain center from untrimmed data
         center = (self.x_center, self.y_center) if center else None
+        import pdb; pdb.set_trace()
         if plot_slices:
             Z_aux = Z_corr if overlay else None
             self.plot_slices(   X, Y, Z_tilt, n_slices, thickness, zrange, clip,

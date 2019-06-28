@@ -21,6 +21,8 @@ def _set_rcparams(ticks = False, style = "pub"):
         plt.style.use("seaborn-white")
 
     params = {  "font.family": "serif",
+                "font.serif": "Times",
+                "text.usetex": False,
                 "font.weight": "normal",
                 "font.size": 12,
                 "xtick.labelsize": 12,
@@ -55,11 +57,81 @@ def _set_rcparams(ticks = False, style = "pub"):
 
     mpl.rcParams.update(params)
 
-def get_fmts():
-    fmts_prod = itertools.product([":", "--", "-."], list("ygrbmck"))
-    fmts_buff = ["".join(x) for x in fmts_prod]
+def get_fmts(type = "black", gray_first = False):
+    # all black
+    if type.lower().startswith("bl"):
+        fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."])
+        fmts_buff = ["".join(x) for x in fmts_prod]
+    # start from color
+    elif type.lower().startswith("col"): # colors
+        params = [[":", "--", "-."], list("kbrygmc")]
+        # force colors to start from grayscale
+        if gray_first: params = params[::-1]
+        fmts_prod = itertools.product(*params)
+        fmts_buff = ["".join(x) for x in fmts_prod]
+    # error plots,
+    elif type.lower().startswith("err"):
+        fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."], ["^", "s", "o"])
+        fmts_buff = ["".join(x) for x in fmts_prod]
+
+    elif type.lower().startswith("scat"): # colors
+        params = [["^", "s", "o"], list("kbrygmc")]
+        # force colors to start from grayscale
+        if gray_first: params = params[::-1]
+        fmts_prod = itertools.product(*params)
+        fmts_buff = ["".join(x) for x in fmts_prod]
 
     return fmts_buff
+
+def adapt_axes(ax, x_lab, y_lab, scale, invert):
+    ax.set_xlabel(x_lab)
+    ax.set_ylabel(y_lab)
+    if re.match("log( ?|\()", x_lab, re.IGNORECASE): ax.set_xscale("log")
+    if re.match("log( ?|\()", y_lab, re.IGNORECASE): ax.set_yscale("log")
+
+    if scale is not None:
+        if scale == "loglog": ax.set_xscale("log"); ax.set_yscale("log")
+        if scale == "logx":  ax.set_xscale("log")
+        if scale == "logy": ax.set_yscale("log")
+    if invert is not None:
+        if "x" in invert.lower(): ax.invert_xaxis()
+        if "y" in invert.lower(): ax.invert_yaxis()
+    return ax
+
+def extend_labs(Xs, Ys, x_labs, y_labs):
+    if len(x_labs) <= len(Xs):
+        x_labs = x_labs + [x_labs[-1]] * (len(Xs) - len(x_labs))
+    if len(y_labs) <= len(Ys):
+        y_labs = y_labs + [y_labs[-1]] * (len(Ys) - len(y_labs))
+    return x_labs, y_labs
+
+def add_legend(ax, legend, location = "inside", ncol = None):
+    if legend is not None and legend != "":
+        if not isinstance(legend, (list, tuple)): legend = [legend]
+        legend = ['\n'.join(wrap(l, 21)) if not l.startswith("$") else l for l in legend]
+
+        if not ncol:
+            ncol = 2 if len(legend) > 5 else 1
+        if location.lower().startswith("in"):
+            ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
+                        borderaxespad = 1.1, ncol = ncol,)
+        elif location.lower().startswith("out"):
+            # f you need the legend outside)
+            ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
+                      borderaxespad = 1.1, ncol = ncol,
+                      bbox_to_anchor = (1.01,1), loc="upper left")
+    return ax
+
+def set_axlim(ax, xlim = None, ylim = None):
+    if xlim: ax.set_xlim(*xlim)
+    if ylim: ax.set_ylim(*ylim)
+    return ax
+
+def add_text(ax, text, text_loc):
+    if text is not None:
+        ax.text(text_loc[0], text_loc[1], text, transform = ax.transAxes,
+                color = "black")
+    return ax
 
 def plot_mock(ax):
     """Render a mock plot"""
@@ -237,20 +309,15 @@ def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = 
     _set_rcparams(ticks)
 
     if fmts is None:
-        fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."])
-        # fmts_prod = itertools.product([":", "--", "-."], list("ygrbmck"))
-        fmts = ["".join(x) for x in fmts_prod]
+        fmts = get_fmts("black")
 
-    if len(x_labs) <= len(Xs):
-        x_labs = x_labs + [x_labs[-1]] * (len(Xs) - len(x_labs))
-    if len(y_labs) <= len(Ys):
-        y_labs = y_labs + [y_labs[-1]] * (len(Ys) - len(y_labs))
+    x_labs, y_labs = extend_labs(Xs, Ys, x_labs, y_labs)
 
     if ax is None:
         fig = plt.figure(figsize = (4.5, 4.5))
         ax = fig.add_subplot(1, 1, 1)
 
-    for x, y, x_lab, y_lab, fmt in zip(Xs, Ys, x_labs, y_labs, fmts):
+    for x, y, fmt in zip(Xs, Ys,  fmts):
         try:
             line = ax.plot(x, y, fmt, **kwargs)
         except ValueError as e:
@@ -261,34 +328,14 @@ def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = 
                     line = ax.plot(x, y, marker = fmt[0], color = fmt[1:], linestyle = "None", **kwargs)
                 except Exception as e:
                     raise e
-        ax.set_xlabel(x_lab)
-        ax.set_ylabel(y_lab)
-        if re.match("log( ?|\()", x_lab, re.IGNORECASE): ax.set_xscale("log")
-        if re.match("log( ?|\()", y_lab, re.IGNORECASE): ax.set_yscale("log")
 
-        if scale is not None:
-            if scale == "loglog": ax.set_xscale("log"); ax.set_yscale("log")
-            if scale == "logx":  ax.set_xscale("log")
-            if scale == "logy": ax.set_yscale("log")
-        if invert is not None:
-            if "x" in invert.lower(): ax.invert_xaxis()
-            if "y" in invert.lower(): ax.invert_yaxis()
+    ax = adapt_axes(ax, x_labs[0], y_labs[0], scale, invert)
 
-    if legend is not None and legend != "":
-        if not isinstance(legend, (list, tuple)): legend = [legend]
-        legend = ['\n'.join(wrap(l, 21)) if not l.startswith("$") else l for l in legend]
-        ncol = 2 if len(legend) > 6 else 1
-        ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
-                    borderaxespad = 1.1, ncol = ncol,)
-                    # bbox_to_anchor=(1.01,1), loc="upper left")
-                     # if you need the legend outside)
-        #
-    # elif len(Xs) > 1:
-        # plt.legend(range(len(Xs)))
+    ax = add_legend(ax, legend, "outside", 1)
 
-    if text is not None:
-        ax.text(text_loc[0], text_loc[1], text, transform = ax.transAxes,
-                color = "black")
+    ax = add_text(ax, text, text_loc)
+
+    # ax = set_axlim(ax, xlim = (1.0, 1.13), ylim = None)
 
     if fname is not None:
         utils.save_fig(fname)
@@ -324,18 +371,14 @@ def boxplot_generic(x, x_labs = None, y_lab = None, legend = None, fname = None)
         ax.set_yscale("log")
 
     # legend
-    if legend is not None:
-        if not isinstance(legend, (list, tuple)): legend = [legend]
-        legend = ['\n'.join(wrap(l, 20)) for l in legend]
-        # `handletextpad=-2.0, handlelength=0` hides the marker in legend [1]
-        ax.legend(legend, fontsize = ax.xaxis.label.get_size()-2)
+    ax = add_legend(ax, legend)
 
     if fname is not None:
         utils.save_fig(fname)
     # recover plotting style
     mpl.rcParams.update(mpl.rcParamsDefault)
 
-def errorplot_generic(  Xs, Ys, Y_errs, x_lab = ["x"], y_lab = ["y"], legend = None,
+def errorplot_generic(  Xs, Ys, Y_errs, x_labs = ["x"], y_labs = ["y"], legend = None,
                         fname = None, fmts = None, ax = None, text = None, text_loc = (0.1, 0.1), scale = None, ticks = False, invert = None, **kwargs):
     """Generic Errorbar plot function
     """
@@ -344,12 +387,13 @@ def errorplot_generic(  Xs, Ys, Y_errs, x_lab = ["x"], y_lab = ["y"], legend = N
     _set_rcparams()
 
     if fmts is None:
-        fmts_prod= itertools.product(["k"], ["-", "--", ":", "-."], ["^", "s", "o"])
-        fmts = ["".join(x) for x in fmts_prod]
+        fmts = get_fmts("errorplot")
 
     if ax is None:
         fig = plt.figure(figsize = (4.5, 4.5))
         ax = fig.add_subplot(1, 1, 1)
+
+    x_labs, y_labs = extend_labs(Xs, Ys, x_labs, y_labs)
 
     handles = []
     kwargs.update({"capsize" : 2, "elinewidth" : 1, "ecolor" : "gray", "capthick" : 1})
@@ -370,28 +414,13 @@ def errorplot_generic(  Xs, Ys, Y_errs, x_lab = ["x"], y_lab = ["y"], legend = N
         # ebars = ax.errorbar(x, y, yerr, fmt = fmts[i],
         #                     capsize = 2, elinewidth = 1, ecolor = "gray", capthick = 1, **kwargs)
         handles.append(ebars[0])
-    ax.set_ylabel(y_lab[0])
-    ax.set_xlabel(x_lab[0])
 
-    if scale is not None:
-        if scale == "loglog": ax.set_xscale("log"); ax.set_yscale("log")
-        if scale == "logx":  ax.set_xscale("log")
-        if scale == "logy": ax.set_yscale("log")
-    if invert is not None:
-        if "x" in invert.lower(): ax.invert_xaxis()
-        if "y" in invert.lower(): ax.invert_yaxis()
+    ax = adapt_axes(ax, x_labs[0], y_labs[0], scale, invert)
 
     # legend
-    if legend is not None and legend != "":
-        if not isinstance(legend, (list, tuple)): legend = [legend]
-        legend = ['\n'.join(wrap(l, 21)) if not l.startswith("$") else l for l in legend]
-        ncol = 2 if len(legend) > 5 else 1
-        ax.legend(legend, fontsize = ax.xaxis.label.get_size()-1,
-                    borderaxespad = 1.1, ncol = ncol)
+    ax = add_legend(ax, legend)
 
-    if text is not None:
-        ax.text(text_loc[0], text_loc[1], text, transform = ax.transAxes,
-                color = "black")
+    ax = add_text(ax, text, text_loc)
 
     if fname is not None:
         utils.save_fig(fname)

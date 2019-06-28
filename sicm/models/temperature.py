@@ -169,12 +169,40 @@ class TemperatureModelArray(object):
         """Visually inspect validity of fits."""
         try:
             for i, m in enumerate(self.model_array):
+                # if m.T_sub != 310.0: continue
                 suffix = "_T{:.2f}K_d{:.0f}nm_Fit".format(m.T_sub, self.d_pipette*1e9)
                 fname = utils.make_fname(self.fpath, suffix.replace(".", "p"))
                 m.check_fit(fname, plot_approach, **kwargs)
         except Exception as e:
             print("Model must be fitted before check-plotting!")
             raise e
+
+    def plot_limits(self, **kwargs):
+        ""
+
+        Ys = []; Xs = []; legends = []; Tsubs = []
+        for m in self.model_array:
+            limits, xs, Tsub = m._get_limits()
+            # if Tsub > 309 or Tsub == 304: continue
+            Xs.append(xs); Ys.append(limits); Tsubs.append(Tsub)
+
+        legends = ["$T_{{sub}} = {:.0f} K$".format(t) for t in Tsubs]
+        plots.plot_generic(Xs, Ys, [r"$r_{sub} / d$"], [r"$(z/d)_{lim}$"],
+                            legend = legends, fmts = plots.get_fmts("scat"),  **kwargs)
+
+        xs = [Xs[0]]
+        ys = [np.mean(np.asarray(Ys), axis = 0)]
+        yerrs = [np.std(np.asarray(Ys), axis = 0)]
+        txt = "$T_{{sub}}$ = {:.0f} .. {:.0f} K".format(np.min(Tsubs), np.max(Tsubs))
+        txt += "\n" + r"$d_{{tip}}$ = {:.0f} nm".format(self.d_pipette*1e9)
+
+        suffix = "_T0{:.0f}K_T1{:.0f}K_d{:.0f}nm".format(np.min(Tsubs), np.max(Tsubs), self.d_pipette*1e9)
+        fname = utils.make_fname(self.fpath, suffix.replace(".", "p"))
+
+        plots.errorplot_generic(xs, ys, yerrs, [r"$r_{sub} / d$"], [r"$(z/d)_{lim}$"],
+                                text = txt, fname = fname, **kwargs)
+
+
 
     def fit(self, err_lim = 2e-1):
         """Fit a linear relationship to select part of data
@@ -239,6 +267,9 @@ class TemperatureModelArray(object):
             # if do_plot:
             #     plots.plot_generic(xs, ys, ["$I / I_{bulk}$"], ["$\Delta\ T$"],
             #                     fmts = fmts, linewidth = 0.5, alpha = 0.15, ax = ax)
+
+
+
         if do_plot:
             y_temp = np.asarray(Ys).T
             y_mean = np.mean(y_temp, axis = 1)
@@ -247,11 +278,13 @@ class TemperatureModelArray(object):
                                     ["$\Delta\ T$"], fmts = fmts, alpha = 0.4,
                                     ax = ax, markersize = 1)
 
+
         a_, b_ = mathops.get_fit_params(a, b, force_positive = False)
-        txt = "y = x*{:.4f} + {:.4f}".format(a_, b_)
-        txt += "; stds: ({:.4f}, {:.4f})".format(np.std(a), np.std(b))
-        txt += "\nz/d LIM = {:.4f}; (std = {:.4f})".format(np.mean(lims_good), np.std(lims_good))
-        print(txt)
+        txt = "y = max(0, $a\cdot x + b$)\n".format(a_, b_)
+        txt += r"a = {:.1f} $\pm$ {:.1f}".format(a_,np.std(a))
+        txt += "\n" + r"b = {:.1f} $\pm$ {:.1f}".format(b_, np.std(b))
+        txt += "\n" + r"$(z/d)_{{lim}}$ = {:.1f} $\pm$ {:.1f}".format(np.mean(lims_good), np.std(lims_good))
+
         info_dict["summary"] = summary
         info_dict["fit"] = {"coeff (mean)": (a_, b_),
                             "coeff (std)": (np.std(a), np.std(b))}
@@ -260,9 +293,13 @@ class TemperatureModelArray(object):
             # y = np.mean(a) * x_ax + np.mean(b)
             y = fun(x_ax, a_, b_)
             ax.plot(x_ax, y, alpha = 0.75, color = "red", linewidth = 2)
-            txt = r"$n = {:d}$".format(len(summary["good"]))
-            ax.text(0.75, 0.1, txt, transform = ax.transAxes, color = "black")
-        # Save dictionary
+            txt += "\n" + r"$n = {:d}$".format(len(summary["good"]))
+            ax.text(0.45, 0.1, txt, transform = ax.transAxes, color = "black")
+
+            # Save fitted picture
+            utils.save_fig(self.fpath, suffix = "_calibration", ext = ".svg")
+
+        # Save dictionary with annotation
         fname = utils.make_fname(self.fpath, "_Annotation", ".json")
         utils.save_dict(info_dict, fname)
 
@@ -383,14 +420,14 @@ class TemperatureModel(Model):
             xx.append(y)
             yy.append(T)
 
-            leg = "$r_{{sub}}={:.2f} \cdot d_{{tip}}$".format(r)
+            leg = "$r_{{sub}}={:.0f} \cdot d_{{tip}}$".format(np.round(r))
             legs.append(leg)
-        txt = "$T_{{sub}}={:.2f} K$" + "\n" + "$d_{{tip}}={:.0f}nm$"
+        txt = "$T_{{sub}}={:.0f}\ K$" + "\n" + "$d_{{tip}}={:.0f}\ nm$"
         txt = txt.format(np.max(self.T) + self.T0, self.d_pipette * 1e9)
         # [r"$z/d$"], [r"$I \cdot (I_{bulk}\ \Delta T)^{-1}$"]
         plots.plot_generic( xx, yy, ["$I / I_{bulk}$"], ["$\Delta\ T$"],
                             legs, fname, scale = "", ticks = True,
-                            text = txt, text_loc = (1.01, 0.9), fmts = fmts_buff,
+                            text = txt, text_loc = (1.01, 0.1), fmts = fmts_buff,
                             invert = None)
 
     def _fit_wrapper(self, what = "fit"):
@@ -576,11 +613,13 @@ class TemperatureModel(Model):
         nrows = np.int(np.ceil(len(self.popt) / 2))
         ncols = 2 if (len(self.popt) > 1) else 1
         fig, axs = plt.subplots(nrows = nrows, ncols = ncols,
-                                figsize = (ncols * 5, nrows * 4))
+                                figsize = (ncols * 4, nrows * 4))
         try:
             axs = axs.flatten()
         except AttributeError as e:
             axs = [axs]
+
+        colors = ["y", "g", "r", "b", "m", "c", "k"]
         for i, (x,y,z,p,idx) in \
             enumerate(zip(self.y, self.T, self.x, self.popt, self.idx)):
             # idx = len(x) - (idx + 1)
@@ -595,13 +634,13 @@ class TemperatureModel(Model):
             yy.append(y[idx:])
             zz.append(z[idx:])
             legs += ["data (valid)"]
-            fmts += [":green"]
+            fmts += ["--" + colors[i]]
 
             xx.append(x[0:idx+1])
             yy.append(y[0:idx+1])
             zz.append(z[0:idx+1])
             legs += ["data (invalid)"]
-            fmts += [":y"]
+            fmts += [":" + colors[i]]
 
             # Fit
             if not plot_approach:
@@ -609,7 +648,7 @@ class TemperatureModel(Model):
                 yy.append(x[idx:] * p[0] + p[1])
                 zz.append(np.ones_like(x[idx:]))
                 legs.append("fit")
-                fmts.append("-whitesmoke")
+                fmts.append("-silver")
 
             # Limiting point
             xx.append(np.asarray(x[idx]))
@@ -620,10 +659,10 @@ class TemperatureModel(Model):
 
             x_lab = ["$I / I_{bulk}$"]
             y_lab = ["$\Delta\ T$"] if not plot_approach else [r"$z/d$"]
-            txt = r"$r_{{sub}}={:.2f} \cdot d_{{tip}}$"
-            txt += "\n" + r"$\frac{{z}}{{d}}|_{{lim}} = {:.2f}$"
-            txt = txt.format(self.r_sub[i], z[idx])
-            txt += r", $I_{{rel}}^{{lim}} = {:.2f}$".format(x[idx])
+            txt = r"$r_{{sub}}={:.0f} \cdot d_{{tip}}$"
+            txt += "\n" + r"$\frac{{z}}{{d}}|_{{lim}} = {:.1f}$"
+            txt = txt.format(np.round(self.r_sub[i]), np.round(z[idx], 1))
+            # txt += r", $I_{{rel}}^{{lim}} = {:.2f}$".format(x[idx])
             if not plot_approach:
                 sign = "+" if p[1] > 0 else ""
                 txt += "\n" + r"$y = {:.2f} x {} {:.2f}$".format(p[0], sign, p[1])
@@ -644,3 +683,10 @@ class TemperatureModel(Model):
         suffix = "" if not plot_approach else "_app"
         if fname is not None:
             utils.save_fig(fname, suffix)
+
+        return
+
+    def _get_limits(self):
+        lim = [z[i] for (z, i) in zip(self.x, self.idx)]
+        xs = [x for x in self.r_sub]
+        return lim, xs, self.T_sub
