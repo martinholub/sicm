@@ -297,7 +297,7 @@ class TemperatureModelArray(object):
             ax.text(0.45, 0.1, txt, transform = ax.transAxes, color = "black")
 
             # Save fitted picture
-            utils.save_fig(self.fpath, suffix = "_calibration", ext = ".svg")
+            utils.save_fig(self.fpath, suffix = "_calibration")# ext = ".svg"
 
         # Save dictionary with annotation
         fname = utils.make_fname(self.fpath, "_Annotation", ".json")

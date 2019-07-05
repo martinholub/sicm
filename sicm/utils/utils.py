@@ -21,13 +21,13 @@ def make_fname(fname, suffix = "", ext = "", subdirname = ""):
 
     if ext:
         ext_ = ext
-    if not ext and not ext_:
-        ext_ = ".svg"
+    # if not ext and not ext_:
+    #     ext_ = ".svg"
 
     fname = os.path.normpath(os.path.join(subdir_path, basename + ext_))
     return fname
 
-def save_fig(fname, suffix = "", ext = ".svg"):
+def save_fig(fname, suffix = "", ext = ""):
     """Helper to save figures"""
     if ext:
         if not ext.startswith("."):

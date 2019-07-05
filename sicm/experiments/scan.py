@@ -256,10 +256,15 @@ class Scan(Experiment):
 
     def _remove_last_datapoint(self, X, Y, Z):
         # Remove last point if the data was not trimmed.
-        was_trimmed = any([False if x is None else True for x in (self.y_trim, self.y_trim)])
+        was_trimmed = any([False if x is None else True for x in (self.x_trim, self.y_trim)])
         # Usually you actually want ot trim, unless you clip fro the end...
         # TODO: figure out a smart way how to include this condition
-        was_trimmed = False
+        if self.y_trim:
+            if np.max(self.y_trim) <= np.max(Y): was_trimmed = False
+
+        if self.x_trim:
+            if np.max(self.x_trim) <= np.max(X): was_trimmed = False
+
         if not self.is_constant_distance and not was_trimmed:
             X, Y, Z = X[:-1], Y[:-1], Z[:-1]
         return X, Y, Z
@@ -449,7 +454,7 @@ class Scan(Experiment):
         suffix = "_approach{}".format(loc_str)
         if convert:
             suffix += "_T"
-        fpath = utils.make_fname(fpath, suffix, ext = ".svg")
+        fpath = utils.make_fname(fpath, suffix)# ext = ".svg"
         plots.plot_generic(x_ax, y_ax, x_lab, y_lab, fname = fpath)
 
     def plot_slices(self, X, Y, tilt, n_slices = 10, thickness = .9,
@@ -567,8 +572,8 @@ class Scan(Experiment):
         # Keep the slice thickness for further use as string in annotation
         thickness_annot = str(np.around(z_delta * delta_multiplier * 2, 4))
 
-        keypairs = {"Current1(A)": r"$I_{norm} [-]$",
-                    "LockinPhase": r"$\theta_{norm} [-]$"}
+        keypairs = {"Current1(A)": r"$I_{norm}\ [-]$",
+                    "LockinPhase": r"$\theta_{norm}\ [-]$"}
         slices_shape = tilt.shape + (n_slices, ) + (len(keypairs), )
         measurements = np.full(slices_shape, np.nan)
         stds = np.full_like(measurements, np.nan)
@@ -784,11 +789,10 @@ class Scan(Experiment):
 
         # Obtain center from untrimmed data
         center = (self.x_center, self.y_center) if center else None
-        import pdb; pdb.set_trace()
         if plot_slices:
             Z_aux = Z_corr if overlay else None
             self.plot_slices(   X, Y, Z_tilt, n_slices, thickness, zrange, clip,
                                 scaleby, center, n_levels, descriptor, Z_aux,
                                 adjust)
         surface.plot_surface_contours( X, Y, Z_corr, z_lab, self.get_fpath(),
-                                       center, n_levels)
+                                       center, n_levels, clip)

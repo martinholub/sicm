@@ -9,7 +9,16 @@ from sicm import analysis
 from sicm.utils import utils
 from sicm.plots.plots import _set_rcparams
 
-def make_colorbar(fig, cmap, fmt, levels, cmin, cmax):
+def _adjust_colorbar_font(cbar):
+    cbaxtex = cbar.ax.yaxis.label
+    font = mpl.font_manager.FontProperties(family = mpl.rcParams["font.family"])
+    cbaxtex.set_font_properties(font)
+
+    for l in cbar.ax.yaxis.get_ticklabels():
+        l.set_family(mpl.rcParams["font.family"])
+    return cbar
+
+def make_colorbar(fig, cmap, fmt, levels, cmin, cmax, **kwargs):
     """Make nice colorbar
 
     Parameters
@@ -35,8 +44,12 @@ def make_colorbar(fig, cmap, fmt, levels, cmin, cmax):
     sm = plt.cm.ScalarMappable(norm = norm, cmap = cmap)
     sm.set_array([])
     # setting boundaries clips off colorbar extends that are not in current lelves
+    # fixing size of colorbar:
+    # https://codeyarns.com/2014/11/17/how-to-fix-height-of-colorbar-in-matplotlib/
     cbar = fig.colorbar(sm, ticks = levels,
-                        format = fmt, drawedges = False)
+                        format = fmt, drawedges = False,
+                        fraction = 0.046, pad = 0.0, **kwargs)
+
     return cbar
 
 def _make_mask(x, y, x_range, y_range):
@@ -299,18 +312,22 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
     if center is not None:
         if z_lab == "Z(um)" or z_lab.lower().startswith("z"):  # avoid centering current!
             z = z - np.nanmin(z)
-        x = x - center[0]
-        y = y - center[1]
+            # cbar_lims = np.multiply(z.max(), cbar_lims)
+        # x = x - center[0]
+        # y = y - center[1]
 
-    if np.any(~np.isfinite(z)): # handle (expected) nans in data gracefully
+    if np.sum(~np.isfinite(z)) > 3: # handle (expected) nans in data gracefully
         raise NotImplementedError("Sparse measurements not implemented!")
     else:
         with plt.style.context("seaborn-ticks"):
             fmt = "%.2e" if (np.max(np.abs(z)) < 1e-3 or np.min(np.abs(z)) > 1e3) else "%.3f"
+            if not cbar_lims:
+                cbar_lims = (cbar_lims, cbar_lims)
             if any(cl is None for cl in cbar_lims):
                 # Option 2: Variable colorbar, but better contrast for each slice
                 conts = plot_contour(ax, x, y, z, levels = n_levels, cmap = cmap)
-                cbar = fig.colorbar(conts, ticks = conts.levels, format = fmt, drawedges = False)
+                cbar = fig.colorbar(conts, ticks = conts.levels, format = fmt, drawedges = False,
+                                    fraction = 0.046, pad = 0.)
                 # cbar.set_clim(*cbar_lims) # this appears not helpful
             else:
                 # Option 1: Same colorbar for all slices
@@ -325,6 +342,8 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
                 cbar = make_colorbar(fig, conts.cmap, fmt, levels_cbar, *cbar_lims)
 
     cbar.ax.set_ylabel(z_lab)
+    cbar = _adjust_colorbar_font(cbar)
+
 
     ax.set_xlabel('X(um)')
     ax.set_ylabel('Y(um)')
@@ -341,7 +360,8 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
     if len(plt.get_fignums()) > 3:
         plt.close('all')
 
-def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = None, n_levels = 10):
+def plot_surface_contours(  x, y, z, z_lab = "z", fpath = None, center = None,
+                            n_levels = 10, cbar_lims = (None, None)):
     """Plot 3D surface contours
 
     Parameters
@@ -355,14 +375,14 @@ def plot_surface_contours(x, y, z, z_lab = "z", fpath = None, center = None, n_l
     center: None or tuple of two
         Centers x,y around 0 and shifts origin of z to 0.
     """
-    plt.style.use("seaborn")
+    # plt.style.use("seaborn")
     fig = plt.figure(figsize = (12, 10))
     # fig.tight_layout()
 
     # Filled countour with triangulation
     ax = fig.add_subplot(2, 2, 1)
     plot_slice( x, y, z, z_lab, ax, center = center, n_levels = n_levels,
-                cmap = "gray")
+                cmap = "gray", cbar_lims = cbar_lims)
 
     # Surface in 3D projection
     ax = fig.add_subplot(2, 2, 2, projection='3d')

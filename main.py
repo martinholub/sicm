@@ -1,6 +1,8 @@
 from sicm.experiments.scan import Scan
 import numpy as np
 from sicm.utils.SubArgParser import SubArgParser
+import matplotlib as mpl
+from sicm.plots.plots import _set_rcparams
 
 ap = SubArgParser(prog="SICM Toolkit", add_help=True)
 args = ap.parse_args()
@@ -14,6 +16,7 @@ if args.what == "scan":
         scan_type = "constant_distance"
     scan = Scan(data_dir, exp_name, args.yrange, args.xrange, args.do_correct,
                 args.convert, scan_type)
+    _set_rcparams(style = args.plot_style)
     scan.plot_surface(args.plot_current, args.plot_slices, args.n_slices, args.center,
                         args.thickness, args.zrange, args.clip, args.scale,
                         args.n_levels, args.descriptor, args.overlay, args.adjust)

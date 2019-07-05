@@ -15,13 +15,10 @@ from sicm import analysis
 from sicm.utils import utils
 
 def _set_rcparams(ticks = False, style = "pub"):
-    if ticks:
-        plt.style.use("seaborn-ticks")
-    else:
-        plt.style.use("seaborn-white")
 
-    params = {  "font.family": "serif",
-                "font.serif": "Times",
+    params = {  # "font.sans-serif": "Helvetica",
+                "font.family": "Times New Roman",
+                #"font.serif": "Times",
                 "text.usetex": False,
                 "font.weight": "normal",
                 "font.size": 12,
@@ -46,6 +43,10 @@ def _set_rcparams(ticks = False, style = "pub"):
 
     params_pub = {
         "savefig.format": "svg",
+        "mathtext.fontset" : "custom",
+        "mathtext.rm"  : "Times New Roman",
+        "mathtext.it"  : "Times New Roman",
+        "mathtext.bf"  : "Times New Roman",
     }
 
     if style.lower().startswith("pres"):
@@ -55,7 +56,19 @@ def _set_rcparams(ticks = False, style = "pub"):
     else:
         pass
 
-    mpl.rcParams.update(params)
+    ## Make changes only if they have not been made previously
+    if mpl.rcParamsDefault == mpl.rcParams:
+
+        if ticks:
+            plt.style.use("seaborn-ticks")
+        else:
+            plt.style.use("seaborn-white")
+
+        fm = mpl.font_manager.json_load(mpl.font_manager._fmcache)
+        fm.findfont("serif", fontext = "afm", rebuild_if_missing = False)
+
+        mpl.rcParams.update(params)
+
 
 def get_fmts(type = "black", gray_first = False):
     # all black
