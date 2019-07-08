@@ -421,7 +421,9 @@ class LockIn(object):
         print("Finished in {:.3f} s".format(end_time - start_time))
 
         self.popt_osc = popt
+        # x = np.append(x, [32688])
         z_hat = fun(x, *popt)
+
         z_hat_corr = analysis.Fitter.apply_correction(self, f = x, r_e = z_hat, popt = popt)
         osc_dict = {   "y_hat": z_hat, "y_hat_corr": z_hat_corr, "y": z, "x": x,
                         "popt": popt}

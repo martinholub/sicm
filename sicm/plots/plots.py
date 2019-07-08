@@ -57,8 +57,7 @@ def _set_rcparams(ticks = False, style = "pub"):
         pass
 
     ## Make changes only if they have not been made previously
-    if mpl.rcParamsDefault == mpl.rcParams:
-
+    if True: #mpl.rcParamsDefault == mpl.rcParams:
         if ticks:
             plt.style.use("seaborn-ticks")
         else:
@@ -344,7 +343,7 @@ def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = 
 
     ax = adapt_axes(ax, x_labs[0], y_labs[0], scale, invert)
 
-    ax = add_legend(ax, legend, "outside", 1)
+    ax = add_legend(ax, legend, "inside", 1)
 
     ax = add_text(ax, text, text_loc)
 

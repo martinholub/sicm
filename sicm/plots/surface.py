@@ -344,7 +344,6 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
     cbar.ax.set_ylabel(z_lab)
     cbar = _adjust_colorbar_font(cbar)
 
-
     ax.set_xlabel('X(um)')
     ax.set_ylabel('Y(um)')
     plt.axis("scaled") # use this if data not square

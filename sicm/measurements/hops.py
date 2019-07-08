@@ -71,7 +71,7 @@ class Hops(object):
 
         # Create single plot with three axis
         # plt.style.use("seaborn")
-        plots._set_rcparams()
+        plots._set_rcparams(style = "pub")
         fig, ax = plt.subplots(figsize = (4.8/0.75, 4.8))
         plt.subplots_adjust(right = 0.75)
         axs = [ax] + list(map(lambda x: x.twinx(), [ax]*(len(data) - 2)))
@@ -97,6 +97,13 @@ class Hops(object):
             'Z(um)': "-k",
             "Current1(A)": "-green"
         }
+
+        labs_map = {
+            'LockinPhase': r"$\rm{\varphi}$",
+            'Z(um)': r"Z [$\rm{\mu}$ m]",
+            "Current1(A)": "I [A]",
+            "time(s)": "t [s]"
+        }
         handles = []
         labels = []
         if do_annotate:
@@ -112,17 +119,26 @@ class Hops(object):
                 this_style = fmt[0]
                 if k == "Z(um)":
                     v -= np.min(v)
-                axs[i].plot(data_[xkey], v, ls = this_style, c = this_color,
+
+                x =  data_[xkey]
+                # # temp adjust
+                # if k == "LockinPhase":
+                #     v = (v - np.min(v) + np.min(np.abs(v))) / np.quantile(np.abs(v), q = 0.05)
+                # else:
+                #     v = v / np.max(v)
+                # x -= np.min(x)
+
+                axs[i].plot(x, v, ls = this_style, c = this_color,
                             label = k, alpha = .5)
 
                 if do_annotate:
                     peaks_id = annot[k.lstrip("_")]["peaks_id"]
-                    axs[i].plot(data_[xkey][peaks_id], v[peaks_id], alpha = 1,
+                    axs[i].plot(x[peaks_id], v[peaks_id], alpha = 1,
                                 linestyle = "", marker = "*", markersize = 10,
                                 markerfacecolor = this_color)
 
-                if i == 0: axs[i].set_xlabel(xkey)
-                axs[i].set_ylabel(k, color = this_color)
+                if i == 0: axs[i].set_xlabel(labs_map[xkey])
+                axs[i].set_ylabel(labs_map[k], color = this_color)
                 axs[i].tick_params("y", colors = this_color)
                 # axs[i].grid(axis = "y", color = this_color,
                 #             alpha = .3, linewidth = .5, linestyle = ":")
