@@ -6,6 +6,7 @@ import os
 import re
 import json
 
+
 def make_fname(fname, suffix = "", ext = "", subdirname = ""):
     # Append suffix to filename and remove non-desirable characters
     basename, ext_ = os.path.splitext(os.path.basename(fname))
@@ -34,7 +35,7 @@ def save_fig(fname, suffix = "", ext = ""):
             ext = "." + ext
 
     fname = make_fname(fname, suffix, ext)
-    plt.savefig(fname, dpi = 600, bbox_inches = "tight")
+    plt.savefig(fname, bbox_inches = "tight")
     print("Saved figure to {}.".format(fname))
 
 def make_patch_spines_invisible(ax):

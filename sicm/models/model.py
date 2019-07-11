@@ -189,7 +189,7 @@ class SICMModel(Model):
         I = U / (self.R_p + self.R_ac)
         return I
 
-    def plot(self, do_invert = False):
+    def plot(self, do_invert = False, **kwargs):
         """Plot analytical relationship
 
         Parameters
@@ -199,13 +199,17 @@ class SICMModel(Model):
         """
         x = self.z/(2*self.r_i) # scale by diameter
         y = self.I
-        y_max = self.U / self.R_p
-        # y_max = np.max(y) if y[-1] > 0 else np.min(y)
-        leg = "Current-distance relation @ T=298.15K"
+        # y_max = self.U / self.R_p
+        y_max = np.max(y) if y[-1] > 0 else np.min(y)
+
+        leg = "" #"Current-distance relation @ T=298.15K"
+
         if do_invert:
-            plots.plot_generic([y/y_max], [x], [r"$I/I_{max}$"], [r"$z/d$"], leg, "inverted I vs. z curve")
+            plots.plot_generic([y/y_max], [x], [r"$\rm{I_{rel}}$"], [r"$\rm{z/d$}"], leg,
+                                "inverted I_vs_z curve", **kwargs)
         else:
-            plots.plot_generic([x], [y/y_max], [r"$z/d$"], [r"$I/I_{max}$"], leg, "I vs. z curve")
+            plots.plot_generic([x], [y/y_max], [r"$\rm{z/d}$"], [r"$\rm{I/I_{bulk}}$"], leg,
+                                "I_vs_z curve", **kwargs)
 
     def _fit_wrapper(self):
         """A wraper to define fixed parameters in the scope of fitting function
@@ -291,21 +295,6 @@ class SICMModel(Model):
         self.popt = popt
 
         self.plot_fit(y, x, double_ax = double_ax)
-
-class Medium(object):
-    """Medium in the pipette"""
-    def __init__(self, theta, gamma, rho):
-        self.theta = theta # young's angle; degree
-        self.gamma = gamma # Gas-Liaquid surface tension; N/m
-        self.rho = rho # medium relativve density (e.g rho_water - rho_air); kg/m3
-
-class Pipette(object):
-    """"Pipette Geometry"""
-    def __init__(self, d_body, d_tip,length = None, alpha = None):
-        self.length = length # length of pipette; m
-        self.d_body = d_body # inener diameter of the capillary; m
-        self.d_tip  = d_tip # inner diameter of the tip; m
-        self.alpha = alpha # tip opening angle; degree
 
 class CapillaryAction(object):
     """Simplified Model of Capillary Action

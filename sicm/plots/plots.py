@@ -18,12 +18,12 @@ def _set_rcparams(ticks = False, style = "pub"):
 
     params = {  # "font.sans-serif": "Helvetica",
                 "font.family": "Times New Roman",
-                #"font.serif": "Times",
+                # "font.serif": "Times New Roman",
                 "text.usetex": False,
                 "font.weight": "normal",
-                "font.size": 12,
-                "xtick.labelsize": 12,
-                "ytick.labelsize": 12,
+                "font.size": 14,
+                "xtick.labelsize": 14,
+                "ytick.labelsize": 14,
                 "xtick.bottom": True,
                 "xtick.direction": "in",
                 "ytick.left": True,
@@ -44,9 +44,12 @@ def _set_rcparams(ticks = False, style = "pub"):
     params_pub = {
         "savefig.format": "svg",
         "mathtext.fontset" : "custom",
+        "mathtext.sf"  : "Times New Roman",
         "mathtext.rm"  : "Times New Roman",
-        "mathtext.it"  : "Times New Roman",
-        "mathtext.bf"  : "Times New Roman",
+        "mathtext.it"  : "Times New Roman:italic",
+        "mathtext.bf"  : "Times New Roman:bold",
+        "mathtext.cal": "Times New Roman",
+        "mathtext.fallback_to_cm": False,
     }
 
     if style.lower().startswith("pres"):
@@ -108,6 +111,8 @@ def adapt_axes(ax, x_lab, y_lab, scale, invert):
     if invert is not None:
         if "x" in invert.lower(): ax.invert_xaxis()
         if "y" in invert.lower(): ax.invert_yaxis()
+
+    # ax.xaxis.set_ticks(np.arange(0, 6, 1.0))
     return ax
 
 def extend_labs(Xs, Ys, x_labs, y_labs):

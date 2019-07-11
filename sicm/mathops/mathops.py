@@ -31,7 +31,7 @@ def find_bulk_val(x, y, guess = None, fun = None):
         guess = [np.mean(y), 1, -1]
     if fun is None:
         fun  = funs._exponential_fit
-        
+
     gm = GeneralModel(x, y, fun = fun)
     gm.fit(guess = guess, verbose = False, maxfev = np.int(1e6), do_plot = False)
     x_ax = np.arange(np.min(x), np.max(x)*100, 1)
@@ -79,3 +79,13 @@ def get_fit_params(As, Bs, force_positive = False):
         # adj = np.minimum(astd, np.abs(diff))
         # a = (diff + sign*adj) - b
     return a, b
+
+def is_null(value):
+    ret = False
+    if not value:
+        ret = True
+    elif np.isnan(value):
+        ret = True
+    # elif value.size() == 0:
+    #     ret = True
+    return ret

@@ -2,3 +2,5 @@
 __pycache__/
 .tags
 *.pdf
+*.png
+*.svg
