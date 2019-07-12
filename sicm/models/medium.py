@@ -107,7 +107,6 @@ class Conductivity(object):
         val *= (T * self.viscosity(self.T0)) /(self.T0 * self.viscosity(T))
         return val
 
-
     def uK(self, T):
         """Mobility of K at c0 as function of temperature"""
         val = self.F / (self.R * T) * self.DK(T)

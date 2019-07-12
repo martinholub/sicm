@@ -10,36 +10,48 @@ import copy
 import pandas as pd
 from matplotlib.image import imread
 
-def load_result(files = [], exp_name = ""):
+def load_result(files = [], exp_name = "", ext = "tsv", sep = "\t"):
     """Load data for files
     """
     result = {}
-    for f in files:
-        name = re.search(exp_name + "_(.*).tsv", os.path.basename(f)).group(1)
+    for i, f in enumerate(files):
+        try:
+            name = re.search(exp_name + "_(.*)." + ext, os.path.basename(f)).group(1)
+        except AttributeError as e:
+            name = exp_name + "_" + str(i)
         name = name.replace(" ", "")
         with open(f, "r") as rf:
-            tsvf = csv.reader(rf, delimiter = "\t")
+            tsvf = csv.reader(rf, delimiter = sep)
+            all_rows = []
             for i, row in enumerate(tsvf):
                 try:
                     row = np.asarray(list(map(float, filter(None, row))))
                 except ValueError as e:
                     import pdb; pdb.set_trace()
-                result[name] = row
+                all_rows.append(row)
+            if len(all_rows) > 1:
+                result[name] = np.asarray(all_rows).reshape((len(all_rows), len(row)))
+            else:
+                result[name] = all_rows[0]
+
     print("Avaliable data:"); print(result.keys())
     num_vals = set(x.shape for x in result.values())
     assert len(num_vals) <= 1, "Not all arays are of same length."
     print("Number of datapoints = {}".format(list(num_vals)[0]))
     return(result)
 
-def get_files(datadir, exp_name):
+def get_files(datadir, exp_name, ext = "tsv"):
     """Get all files in directory
 
     Fetches a time of modification of the files.
     """
-    all_files = glob.glob(os.path.join(datadir, exp_name + "*.tsv"))
+    all_files = glob.glob(os.path.join(datadir, exp_name + "*." + ext))
     # Discard files with similar basename
-    r = re.compile(exp_name + "_(.*).tsv")
-    files = [f for f in all_files if r.search(f)]
+    if len(all_files) > 1:
+        r = re.compile(exp_name + "_(.*)." + ext)
+        files = [f for f in all_files if r.search(f)]
+    else:
+        files = all_files
     dates = [os.path.getmtime(f) for f in files]
     t = time.localtime(min(dates))
     date = "{:02d}/{:02d}/{:04d} {:02d}:{:02d}".format(t.tm_mday, t.tm_mon, t.tm_year,

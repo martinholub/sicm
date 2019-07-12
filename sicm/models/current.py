@@ -4,7 +4,7 @@ from sicm.plots import plots
 from .medium import Conductivity
 
 class TestCurrent(object):
-    """Temporary utility function to calculate current
+    """Utility class to calculate current
 
     Using equations as in Dmitry's notebook.
     """
@@ -20,13 +20,22 @@ class TestCurrent(object):
         i = self.U / r_tot
         return i
 
-    def plot_current(self, T, T0 = 298.15, c0 = 0.5, plot_relative = False):
-        i = self.calculate_current(T, T0, c0)
-        i_t0 = self.calculate_current(T0, T0, c0)
+    def plot_current(self, T, T0 = 298.15, c0 = 0.5, plot_relative = False,
+                    add_data = {}, **kwargs):
+        i = self.calculate_current(T, T0, c0) * 1e9
+        i_t0 = self.calculate_current(T0, T0, c0) * 1e9
 
-        if not plot_relative:
-            plots.plot_generic([T], [i], ["T [K]"], ["I [nA]"])
-
-        else:
+        if plot_relative:
             i = i / i_t0
-            plots.plot_generic([T], [i], ["T [K]"], [r"$\rm{I_{rel}}}$ [nA]"])
+            y_lab = [r"$\rm{I_{rel}}}$ [nA]"]
+        else:
+            y_lab = ["I [nA]"]
+
+        x = [T]; y = [i]; x_lab = ["T [K]"]; leg = ["model"]
+
+        if add_data:
+            x += add_data["x"]
+            y += add_data["y"]
+            leg += add_data["leg"]
+
+        plots.plot_generic(x, y, x_lab, y_lab, leg, **kwargs)
