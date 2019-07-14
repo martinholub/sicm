@@ -98,7 +98,9 @@ def get_fmts(type = "black", gray_first = False):
 
     return fmts_buff
 
-def adapt_axes(ax, x_lab, y_lab, scale, invert):
+def adapt_axes(ax, x_labs, y_labs, scale, invert, second = False):
+    x_lab = x_labs[0]; y_lab = y_labs[0];
+
     ax.set_xlabel(x_lab)
     ax.set_ylabel(y_lab)
     if re.match("log( ?|\()", x_lab, re.IGNORECASE): ax.set_xscale("log")
@@ -112,6 +114,13 @@ def adapt_axes(ax, x_lab, y_lab, scale, invert):
         if "x" in invert.lower(): ax.invert_xaxis()
         if "y" in invert.lower(): ax.invert_yaxis()
 
+    if second:
+        ax2 = ax.twinx()
+        ax2.set_ylim(ax.get_ylim())
+        ax2.set_yscale(ax.get_yaxis().get_scale())
+        color = ax.lines[-1].get_color()
+        ax2.set_ylabel(y_labs[-1], color = color)
+        ax2.tick_params(axis='y', labelcolor = color)
     # ax.xaxis.set_ticks(np.arange(0, 6, 1.0))
     return ax
 
@@ -316,7 +325,7 @@ def plot_lockin(data = {}, keys = [("frequency", "r")], date = None, name = None
 
 def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = None,
                 fmts = None, ax = None, text = None, text_loc = (0.1, 0.1),
-                scale = None, ticks = False, invert = None,  **kwargs):
+                scale = None, ticks = False, invert = None, second = False,  **kwargs):
     """Generic ploting function
 
     This is an attempt of generic function that produces publication quality
@@ -346,7 +355,7 @@ def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = 
                 except Exception as e:
                     raise e
 
-    ax = adapt_axes(ax, x_labs[0], y_labs[0], scale, invert)
+    ax = adapt_axes(ax, x_labs, y_labs, scale, invert, second)
 
     ax = add_legend(ax, legend, "inside", 1)
 
@@ -432,7 +441,7 @@ def errorplot_generic(  Xs, Ys, Y_errs, x_labs = ["x"], y_labs = ["y"], legend =
         #                     capsize = 2, elinewidth = 1, ecolor = "gray", capthick = 1, **kwargs)
         handles.append(ebars[0])
 
-    ax = adapt_axes(ax, x_labs[0], y_labs[0], scale, invert)
+    ax = adapt_axes(ax, x_labs, y_labs, scale, invert)
 
     # legend
     ax = add_legend(ax, legend)

@@ -20,18 +20,25 @@ class TestCurrent(object):
         i = self.U / r_tot
         return i
 
-    def plot_current(self, T, T0 = 298.15, c0 = 0.5, plot_relative = False,
+    def plot_current(self, T = None, T0 = 298.15, c0 = 0.5, plot_relative = False,
                     add_data = {}, **kwargs):
-        i = self.calculate_current(T, T0, c0) * 1e9
-        i_t0 = self.calculate_current(T0, T0, c0) * 1e9
 
-        if plot_relative:
-            i = i / i_t0
-            y_lab = [r"$\rm{I_{rel}}}$ [nA]"]
+        x_lab = ["T [K]"]
+        y_lab = ["I [nA]"]
+
+        if T is not None:
+            i = self.calculate_current(T, T0, c0) * 1e9
+            i_t0 = self.calculate_current(T0, T0, c0) * 1e9
+
+            if plot_relative:
+                i = i / i_t0
+                y_lab = [r"$\rm{I_{rel}}}$ [nA]"]
+
+            x = [T]; y = [i]; leg = ["model"]
         else:
-            y_lab = ["I [nA]"]
-
-        x = [T]; y = [i]; x_lab = ["T [K]"]; leg = ["model"]
+            x = []
+            y = []
+            leg = []
 
         if add_data:
             x += add_data["x"]
