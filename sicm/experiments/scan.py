@@ -264,7 +264,7 @@ class Scan(Experiment):
 
         if self.x_trim:
             if np.max(self.x_trim) <= np.max(X): was_trimmed = False
-
+        was_trimmed = False
         if not self.is_constant_distance and not was_trimmed:
             X, Y, Z = X[:-1], Y[:-1], Z[:-1]
         return X, Y, Z

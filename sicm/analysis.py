@@ -386,7 +386,9 @@ class Fitter(object):
 
         # Extract presumed parameters of oscillator
         v0 = popt[0]
-        r = 23750 # https://dx.doi.org/10.3938/NPSM.65.76
+        r = 21463.0847 #  from `lockin.ipynb`
+        # "S:\UsersData\Martin\2018\12_Dec\17\lockin_characterisation\sweep_1MOhm_range1_100mV_short50OhmCable_000\dev662_demods_3_sample_00000.csv"
+        #r =  23750.0 # https://dx.doi.org/10.3938/NPSM.65.76
         I0 = v0 / r
         L = (r * popt[1])/popt[2]
         C = 1/((popt[2]**2) * L)

@@ -157,7 +157,7 @@ def _plot_surface(ax, x, y, z, cmap):
     surf = _plot_surface_3(ax, x, y, z, cmap)
     return surf
 
-def _plot_contour_1(ax, x, y, z, cmap, norm):
+def _plot_contour_1(ax, x, y, z, cmap, norm, levels, **kwargs):
     """ Plot data as a 2D contour plot.
 
     This may work if there is only few nans. This is often not the case.
@@ -168,8 +168,9 @@ def _plot_contour_1(ax, x, y, z, cmap, norm):
     point_mask = ~np.isfinite(z)   # Points to mask out.
     tri_mask = np.any(point_mask[triang.triangles], axis = 1)  # Triangles to mask out.
     triang.set_mask(tri_mask)
-    levels = np.linspace(np.nanmin(z), np.nanmax(z), 10)
-    conts = ax.tricontourf(triang, z, cmap = cmap, levels = levels, norm = norm)
+    # levels = np.linspace(np.nanmin(z), np.nanmax(z), 10)
+    conts = ax.tricontourf( triang, z, cmap = cmap, levels = levels, norm = norm,
+                            **kwargs)
     return conts
 
 def _plot_contour_2(ax, x, y, z, cmap, norm):
@@ -210,6 +211,8 @@ def _plot_contour_3(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10, z_au
         # Extend 'both' replaces colors out of range by low-high range limits
         conts = ax.tricontourf( x, y, z, cmap = cmap, levels = levels,
                                 norm = norm, extend = "both", alpha = 0.75)
+        # conts = _plot_contour_1(ax, x, y, z, cmap, norm, levels,
+        #                         extend = "both", alpha = 0.75)
     if z_aux is not None:
         # scale and convert to nm
         z_aux = (z_aux - np.nanmin(z_aux)) * 1e3

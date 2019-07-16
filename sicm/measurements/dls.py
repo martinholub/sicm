@@ -13,8 +13,37 @@ from sicm.utils import utils
 class ZetaSizerReader(object):
     """Class for reading data expored from ZetaSizer Instrument
     """
-    def __init__(self, fpath):
-        self.fpath = fpath # TODO: check that file exists, make it to list
+    def __init__(self, datadir, exp_name, ext = ".txt"):
+        self.datadir = datadir
+        self.name = exp_name # TODO: check that file exists, make it to list
+        self.ext = ext
+
+    @property
+    def datadir(self):
+        return self._datadir
+    @datadir.setter
+    def datadir(self, value):
+        if not isinstance(value, (list, tuple, np.ndarray)):
+            value = [value]
+        self._datadir = value
+
+    @property
+    def name(self):
+        return self._name
+    @name.setter
+    def name(self, value):
+        if not isinstance(value, (list, tuple, np.ndarray)):
+            value = [value]
+        self._name = value
+
+    @property
+    def ext(self):
+        return self._ext
+    @ext.setter
+    def ext(self, value):
+        if not value.startswith("."):
+            value = "." + value
+        self._ext = value
 
     def _load_measurement(self, fpath):
         """Load data from tab-separated file to OrderedDictionary
@@ -26,16 +55,16 @@ class ZetaSizerReader(object):
         """
 
         # Load rows to dataframe, use column names
-        df_ = pd.DataFrame(quoted_data_reader(self.fpath))
+        df_ = pd.DataFrame(quoted_data_reader(fpath))
         df = pd.DataFrame(df_.values[1:], columns=df_.iloc[0])
 
         # Unique Samples in the file (includes 3 repeats per sample)
         samples = df["Sample Name"].values.tolist()
         # Unique Datasets in the file (ordered)
         columns = list(re.match("(.*?)(\[[0-9]+\]| ?)( ?\(.*\)| ?)$", x).group(1) for x in
-                                df.columns.to_list())
+                                df.columns.tolist())
         units = list(re.match("(.*?)(\[[0-9]+\]| ?)( ?)(\(.*\)| ?)$", x).group(4) for x in
-                                df.columns.to_list())
+                                df.columns.tolist())
         _, idx = np.unique(columns, return_index=True)
         columns = np.asarray(columns)[np.sort(idx)].tolist()
         units = np.asarray(units)[np.sort(idx)].tolist()
@@ -67,13 +96,15 @@ class ZetaSizerReader(object):
         uniq_samples = list(vals.keys())
         objs = []
         for uniq_sample in uniq_samples:
-            objs.append(DLS(vals[uniq_sample], uniq_sample, self.fpath))
+            objs.append(DLS(vals[uniq_sample], uniq_sample, fpath))
         return objs
 
     def load_measurements(self):
-        fpaths = self.fpath
+        fpaths = [os.path.join(d, f) for (d,f) in zip(self.datadir, self.name)]
+        fpaths = [fp + self.ext for fp in fpaths]
+        # fpaths = self.fpath
+        # if not isinstance(fpaths, (list, tuple, np.ndarray)): fpaths = [fpaths]
         objs = []
-        if not isinstance(fpaths, (list, tuple, np.ndarray)): fpaths = [fpaths]
         for fpath in fpaths:
             obj = self._load_measurement(fpath)
             objs.extend(obj)
@@ -127,7 +158,7 @@ class DLS(object):
 
         self.annotation = annot
 
-    def plot(self, ykey, xkey = "Sizes"):
+    def plot(self, ykey = "Volumes", xkey = "Sizes", **kwargs):
         """Plot measurmement for a sample
 
         Parameters
@@ -149,5 +180,8 @@ class DLS(object):
             raise Exception("Coordinates on X-axis differ among samples!")
 
         legend = self.name.replace("_sio2SOP", "")
-        fname = os.path.splitext(self.fpath)[0] + "_" + self.name + "_" + ykey
-        plots.errorplot_generic([x], [y] , [y_err], x_lab, y_lab, legend, fname)
+        suffix = legend.replace(":", "to")
+        fname = os.path.splitext(self.fpath)[0] + "_" + self.name
+        fname +=  "_" + ykey  #+ "_" + suffix
+        plots.errorplot_generic([x], [y] , [y_err], x_lab, y_lab, legend,
+                                fname, **kwargs)

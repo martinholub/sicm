@@ -125,6 +125,9 @@ def adapt_axes(ax, x_labs, y_labs, scale, invert, second = False):
     return ax
 
 def extend_labs(Xs, Ys, x_labs, y_labs):
+    if not isinstance(x_labs, (list, tuple)): x_labs = [x_labs]
+    if not isinstance(y_labs, (list, tuple)): y_labs = [y_labs]
+    
     if len(x_labs) <= len(Xs):
         x_labs = x_labs + [x_labs[-1]] * (len(Xs) - len(x_labs))
     if len(y_labs) <= len(Ys):
