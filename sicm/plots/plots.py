@@ -127,7 +127,7 @@ def adapt_axes(ax, x_labs, y_labs, scale, invert, second = False):
 def extend_labs(Xs, Ys, x_labs, y_labs):
     if not isinstance(x_labs, (list, tuple)): x_labs = [x_labs]
     if not isinstance(y_labs, (list, tuple)): y_labs = [y_labs]
-    
+
     if len(x_labs) <= len(Xs):
         x_labs = x_labs + [x_labs[-1]] * (len(Xs) - len(x_labs))
     if len(y_labs) <= len(Ys):
@@ -371,7 +371,8 @@ def plot_generic(Xs, Ys, x_labs = ["x"], y_labs = ["y"], legend = None, fname = 
     # recover plotting style
     mpl.rcParams.update(mpl.rcParamsDefault)
 
-def boxplot_generic(x, x_labs = None, y_lab = None, legend = None, fname = None):
+def boxplot_generic(x, x_labs = None, y_lab = None, legend = None, fname = None,
+                    **kwargs):
     """Generic Boxplot function
 
     This is an attempt of generic function that produces publication quality
@@ -394,7 +395,8 @@ def boxplot_generic(x, x_labs = None, y_lab = None, legend = None, fname = None)
     ax = fig.add_subplot(1, 1, 1)
     bxplt = ax.boxplot( x, labels = x_labs, showmeans = True, meanline = True,
                         medianprops = {"color": "black", "linestyle": '-.'},
-                        meanprops = {"color": "gray", "linestyle": ':'})
+                        meanprops = {"color": "gray", "linestyle": ':'},
+                        **kwargs)
     ax.set_ylabel(y_lab)
     if np.mean(x) < 0.05:
         ax.set_yscale("log")
