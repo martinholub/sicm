@@ -210,7 +210,7 @@ class Conductivity(object):
 
     def thermal_diffusivity(self, T):
         """Thermal diffusivity of medium given temperature T """
-        
+
         alpha = self.thermal_conductivity(T)
         alpha /= (self.specific_heat(T) * self.density(T))
         return alpha
@@ -229,7 +229,7 @@ class Conductivity(object):
             if not T.size: T = self.T0
         kappa = self.F * self.c0 * 1e3
         kappa *= (self.uK(T) + self.uCl(T))
-        kappa *= (self.density(T)) / (self.density(self.T0))
+        kappa *= (self.density(T)) / (self.density(self.T0)) # self.relative_density(T)
         return kappa
 
     def kappa(self, T = None):
