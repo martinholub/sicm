@@ -19,10 +19,13 @@ def scale_by_init(t, x, how = "quantile", q = 0.95, t_len = 250e-3):
 def rolling_mean(x, y, window_size = 10):
     if window_size > 1:
         y_temp = pd.Series(y).rolling(window = window_size).mean()
-        x_temp = x
         # Apply changes
         y = y_temp.iloc[window_size-1:].values
-        x = x_temp[window_size-1:]
+        try:
+            x_temp = x
+            x = x_temp[window_size-1:]
+        except Exception as e:
+            x = None
     return x, y
 
 def find_bulk_val(x, y, guess = None, fun = None):
@@ -89,3 +92,22 @@ def is_null(value):
     # elif value.size() == 0:
     #     ret = True
     return ret
+
+def smooth_outliers(x, qs = (0.05, 0.95), widnow_size = 10):
+    """Replace single index outliers by mean of suroinding values"""
+    x_qs = np.quantile(x, qs)
+    loc = np.nonzero(np.logical_or(x < x_qs[0], x > x_qs[-1]))[0]
+    # _, x_roll = rolling_mean(None, x, window_size)
+
+    for i in loc: # could alsio make mask, but quic anyway
+        try:
+            # opt 1
+            mask = list((i-1, i+1))
+            x[i] = np.mean(x[mask])
+
+            # opt 2
+            # mask = list((i-2, i+2))
+            # x[i-1:i+2] = np.mean(x[mask])
+        except  Exception as e:
+            pass
+    return x

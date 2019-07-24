@@ -259,9 +259,11 @@ def _plot_surface_contours( x, y, z, z_lab = "Z", ax = None, title = None,
     else:
         fig = ax.get_figure()
 
+    # Center z always for now
+    if z_lab == "Z(um)" or z_lab.lower().startswith("z"):  # avoid centering current!
+        z = z - np.nanmin(z)
+
     if center is not None:
-        if z_lab == "Z(um)" or z_lab.lower().startswith("z"):  # avoid centering current!
-            z = z - np.nanmin(z)
         x = x - center[0]
         y = y - center[1]
 

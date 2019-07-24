@@ -787,6 +787,8 @@ class Scan(Experiment):
         Z_corr, Z_tilt = analysis.level_plane(  X, Y, Z, True, is_interactive,
                                                 z_lab = z_lab)
 
+        Z_corr = mathops.smooth_outliers(Z_corr)
+
         # Obtain center from untrimmed data
         center = (self.x_center, self.y_center) if center else None
         if plot_slices:
