@@ -216,10 +216,10 @@ def _plot_contour_3(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10, z_au
     if z_aux is not None:
         # scale and convert to nm
         z_aux = (z_aux - np.nanmin(z_aux)) * 1e3
-        conts_aux = ax.tricontour(x, y, z_aux, colors = "black", alpha = 0.1,
+        conts_aux = ax.tricontour(x, y, z_aux, colors = "black", alpha = 0.3,
                                     linewidths = mpl.rcParams["lines.linewidth"]*0.2)
         plt.clabel( conts_aux, conts_aux.levels[::2], fmt = "%1.1f",
-                    inline = True, fontsize = 4)
+                    inline = True, fontsize = 5)
 
     ## Plotting data as an image. Not very nice.
     # z_ = np.reshape(z[:np.int(np.sqrt(z.shape[0]))**2], (np.int(np.sqrt(z.shape[0])), -1))

@@ -28,6 +28,7 @@ def convert_measurements(data, fun = None, params = None):
             # s12r003.json includes Soret effect
             # use s9r004.json for other cases.
             pth = os.path.join(pwd, "data/s12r003.json")
+            # pth = os.path.join(pwd, "data/s9r004.json")
             d = utils.load_dict(pth)
             params = d["fit"]["coeff (mean)"]
         except Exception as e:
