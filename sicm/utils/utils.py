@@ -6,7 +6,6 @@ import os
 import re
 import json
 
-
 def make_fname(fname, suffix = "", ext = "", subdirname = ""):
     # Append suffix to filename and remove non-desirable characters
     basename, ext_ = os.path.splitext(os.path.basename(fname))
@@ -33,9 +32,13 @@ def save_fig(fname, suffix = "", ext = ""):
     if ext:
         if not ext.startswith("."):
             ext = "." + ext
+    try:
+        fname = make_fname(fname, suffix, ext)
+        plt.savefig(fname, bbox_inches = "tight")
+    except ValueError as e:
+        fname = make_fname(fname, suffix, ".svg")
+        plt.savefig(fname, bbox_inches = "tight")
 
-    fname = make_fname(fname, suffix, ext)
-    plt.savefig(fname, bbox_inches = "tight")
     print("Saved figure to {}.".format(fname))
 
 def make_patch_spines_invisible(ax):

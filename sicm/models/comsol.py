@@ -235,7 +235,7 @@ class ComsolModel(Model):
                 # Attempt to visualize experiments with multiple variables
                 x = []
                 y = []
-                fmts_buff = plots.get_fmts()
+                fmts_buff = plots.get_fmts("color")
                 fmts = []
                 legend = []
                 uniqs_second = self.comsol.data[secondary_var_name].unique()
