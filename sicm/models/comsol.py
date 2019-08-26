@@ -154,7 +154,7 @@ class ComsolModel(Model):
         return txt, ax_txt
 
     def _add_experiment(self, x, y, legend, fmts, title, window_size, pipette_diameter,
-                        scale_by_inf = True):
+                        scale_by_inf = False):
         try:
             # Assign x-axis, set origin to 0 and scale by pipette diameter
             x_ = self.approach.dsdata["Z(um)"]
@@ -166,7 +166,8 @@ class ComsolModel(Model):
             t_ = np.cumsum(self.approach.dsdata["dt(s)"])
             if scale_by_inf:
                 sel = x_ > 2
-                scaler = mathops.find_bulk_val(x_[sel], y_[sel])
+                x_roll, y_roll = mathops.rolling_mean(x_[sel], y_[sel])
+                scaler = mathops.find_bulk_val(x_roll, y_roll)
             else:
                 _, scaler = mathops.scale_by_init(t_, y_, q = 0.5)
 
@@ -322,7 +323,8 @@ class ComsolModel(Model):
 
             if show_experiment:
                 x, y, legend, fmts, title = \
-                    self._add_experiment(x, y, legend, fmts, title, window_size, pipette_diameter)
+                    self._add_experiment(x, y, legend, fmts, title, window_size,
+                    pipette_diameter, scale_by_inf)
 
             try:
                 if add_unity_line == "y":
@@ -382,9 +384,9 @@ class ComsolModel(Model):
             Ys_.append(y)
             fmts.append(fmt)
 
-
         Xs_, Ys_, legend, fmts, title = \
-                self._add_experiment(Xs_, Ys_, legend, fmts, title, window_size, pipette_diameter)
+                self._add_experiment(Xs_, Ys_, legend, fmts, title, window_size,
+                                     pipette_diameter, scale_by_inf)
 
         plots.plot_generic(Xs_, Ys_, ["$z/d$"], ["$I/I_{bulk}$"], legend = legend,
                             fmts = fmts, **kwargs)

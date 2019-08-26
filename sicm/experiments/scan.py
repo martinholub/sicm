@@ -8,7 +8,7 @@ from scipy.stats import trim_mean
 from sicm import analysis
 from sicm.plots import plots, surface
 from sicm.utils import utils
-from sicm.io import downsample_to_linenumber
+from sicm.io import downsample_to_linenumber, write_tsv
 from .experiment import Experiment
 from ..measurements.hops import Hops
 from sicm.mathops.conversion import convert_measurements
@@ -391,7 +391,8 @@ class Scan(Experiment):
         hop = Hops(data, self._idxs, self.name, self.date)
         hop.plot(sel, fname = fpath, do_annotate = not self.is_it)
 
-    def plot_approach(self, location = None, relative = True, convert = False):
+    def plot_approach(self, location = None, relative = True, convert = False,
+                        save_data = False):
         """Plots approach of a scan
 
         Normally, we don't care about an approach of a scan, but occasionaly
@@ -407,10 +408,11 @@ class Scan(Experiment):
         data = self._data
         sel, loc_str = self._select_approach(data, location)
 
-        x_ax = data["Z(um)"][sel] # [np.cumsum(data["dt(s)"][sel])]
-        x_ax = [x_ax - np.min(x_ax)]
+        x_ax_raw = data["Z(um)"][sel] # [np.cumsum(data["dt(s)"][sel])]
+        x_ax = [x_ax_raw - np.min(x_ax_raw)]
         y_ax = []
         y_lab = []
+        save_dict = {}
 
         # If you need to impose some criteria on x,y data
         # sel2 = np.logical_and(x_ax[0] < 0.7, x_ax[0] > 0.01)
@@ -419,10 +421,14 @@ class Scan(Experiment):
         dt = data["dt(s)"][sel]
 
         try:
-            y = data["Current1(A)"][sel]
+            y_raw = data["Current1(A)"][sel]
+            save_dict.update({"Current1(A)": y_raw})
             if relative:
-                _, scaler = mathops.scale_by_init(np.cumsum(dt), y)
-                y = y/scaler
+                _, scaler = mathops.scale_by_init(np.cumsum(dt), y_raw)
+                if True: # Scale by infty
+                    x_roll, y_roll = mathops.rolling_mean(x_ax_raw, y_raw)
+                    scaler = mathops.find_bulk_val(x_roll, y_roll)
+                y = y_raw/scaler
                 y = y[sel2]
                 y_lab_ = r"$I_{norm}\ (-)$"
                 if convert:
@@ -437,7 +443,8 @@ class Scan(Experiment):
 
         try:
             y = data["LockinPhase"][sel]
-            y = data["LockinAmplitude"][sel]
+            y_aux = data["LockinAmplitude"][sel]
+            save_dict.update({"LockinPhase": y, "LockinAmplitude": y_aux})
             if relative:
                 y , _= mathops.scale_by_init(np.cumsum(dt), y)
                                 # y_lab.append(r"$\theta_{norm}$")
@@ -448,14 +455,24 @@ class Scan(Experiment):
         except KeyError as e:
             pass
 
-
         x_lab = [r"$Z\ (um)$"]# ["time(s)"]
-        fpath = self.get_fpath()
+        fpath_temp= self.get_fpath()
         suffix = "_approach{}".format(loc_str)
         if convert:
             suffix += "_T"
-        fpath = utils.make_fname(fpath, suffix)# ext = ".svg"
+        fpath = utils.make_fname(fpath_temp, suffix)# ext = ".svg"
         plots.plot_generic(x_ax, y_ax, x_lab, y_lab, fname = fpath)
+
+        if save_data:
+            try:
+                save_dict.update({  "dt(s)": dt,
+                                    "Z(um)": x_ax_raw[:],
+                                    "LineNumber": data["LineNumber"][sel],
+                                    "V1(V)": data["V1(V)"][sel]})
+                suffix = suffix[1:]
+                write_tsv(save_dict, self.datadir, suffix)
+            except Exception as e:
+                pass
 
     def plot_slices(self, X, Y, tilt, n_slices = 10, thickness = .9,
                     zrange = (None, None), clip = (None, None),

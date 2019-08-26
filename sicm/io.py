@@ -281,3 +281,17 @@ def rgb2gray(rgb):
     [1]  https://pillow.readthedocs.io/en/3.2.x/reference/Image.html#PIL.Image.Image.convert
     """
     return np.dot(rgb[:,:, :3], [0.2989, 0.5870, 0.1140])
+
+def write_tsv(datadict, dirpath, exp_name, ext = ".tsv", sep = "\t"):
+    """Save data to dictionary
+    """
+    dirpath += "\\" + exp_name
+    if not os.path.isdir(dirpath):
+        os.makedirs(dirpath)
+
+    for k,v in datadict.items():
+        fname = exp_name + "_{}".format(k)
+        this_path = dirpath + "\\" + fname + ext
+        with open(this_path, "w", newline = "") as tsvfile:
+            writer = csv.writer(tsvfile, delimiter=sep)
+            writer.writerow(v)
