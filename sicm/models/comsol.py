@@ -168,6 +168,7 @@ class ComsolModel(Model):
                 sel = x_ > 2
                 x_roll, y_roll = mathops.rolling_mean(x_[sel], y_[sel])
                 scaler = mathops.find_bulk_val(x_roll, y_roll)
+                # print(scaler)
             else:
                 _, scaler = mathops.scale_by_init(t_, y_, q = 0.5)
 
@@ -252,6 +253,7 @@ class ComsolModel(Model):
                         if scale_by_inf:
                             sel3 = x_sec > 2
                             scaler = mathops.find_bulk_val(x_sec[sel3], y_sec[sel3])
+                            # print("{} | {} | {}".format(var, sec_var, scaler))
                         else:
                             scaler = y_sec[-1]
 
