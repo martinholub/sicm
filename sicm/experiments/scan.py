@@ -392,7 +392,7 @@ class Scan(Experiment):
         hop.plot(sel, fname = fpath, do_annotate = not self.is_it)
 
     def plot_approach(self, location = None, relative = True, convert = False,
-                        save_data = False):
+                        save_data = False, scale_by_inf = True):
         """Plots approach of a scan
 
         Normally, we don't care about an approach of a scan, but occasionaly
@@ -425,7 +425,7 @@ class Scan(Experiment):
             save_dict.update({"Current1(A)": y_raw})
             if relative:
                 _, scaler = mathops.scale_by_init(np.cumsum(dt), y_raw)
-                if True: # Scale by infty
+                if scale_by_inf: # Scale by infty
                     x_roll, y_roll = mathops.rolling_mean(x_ax_raw, y_raw)
                     scaler = mathops.find_bulk_val(x_roll, y_roll)
                 y = y_raw/scaler
@@ -436,6 +436,7 @@ class Scan(Experiment):
                     y_lab_ = r"$\Delta T [K]$"
                 y_lab.append(y_lab_)
             else:
+                y = y_raw
                 y_lab.append(r"$I\ (nA)$")
             y_ax.append(y)
         except KeyError as e:
@@ -803,8 +804,8 @@ class Scan(Experiment):
 
         Z_corr, Z_tilt = analysis.level_plane(  X, Y, Z, True, is_interactive,
                                                 z_lab = z_lab)
-
-        # Z_corr = mathops.smooth_outliers(Z_corr)
+        # smooth outliers
+        Z_corr = mathops.smooth_outliers(Z_corr)
 
         # Obtain center from untrimmed data
         center = (self.x_center, self.y_center) if center else None

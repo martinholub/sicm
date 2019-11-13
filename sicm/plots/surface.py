@@ -173,7 +173,7 @@ def _plot_contour_1(ax, x, y, z, cmap, norm, levels, **kwargs):
                             **kwargs)
     return conts
 
-def _plot_contour_2(ax, x, y, z, cmap, norm):
+def _plot_contour_2(ax, x, y, z, cmap, norm, levels, z_aux):
     """ Plot data as a 2D contour plot
 
     This would work for square data only
@@ -187,7 +187,10 @@ def _plot_contour_2(ax, x, y, z, cmap, norm):
     x_sq[1::2, :] = x_sq[1::2, ::-1]
     y_sq[1::2, :] = y_sq[1::2, ::-1]
     z_sq[1::2, :] = z_sq[1::2, ::-1]
-    conts = ax.contourf(x_sq, y_sq, z_sq, cmap =cmap, levels = 10, norm = norm)
+    # conts = ax.contourf(x_sq, y_sq, z_sq, cmap =cmap, levels = levels, norm = norm)
+    conts = ax.imshow(z_sq.T, cmap = cmap, norm = norm,
+                        extent = [x_sq.min(), x_sq.max(), y_sq.min(), y_sq.max()],
+                        alpha = 0.75)
     return conts
 
 def _plot_contour_3(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10, z_aux = None):
@@ -230,6 +233,40 @@ def _plot_contour_3(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10, z_au
 
     return conts
 
+def _plot_contour_3b(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10, z_aux = None):
+    """Plot contours on a grid, without interpolation
+
+    Parameters
+    --------
+    ax: matplolib.pyplot.axis
+    x: array-like
+    y: array-like
+    z: array-like
+    cmap: str
+        'afmhot' produces AFM colormap, otherwise go for e.g. 'binary'
+    levels: int or array-like
+        Levels of contour plot. If int, levels are determined by pyplot.
+        (It should give the same result though)
+    """
+    # Reshape to square matrix
+    a = np.int(np.sqrt(len(z)))
+    x_sq = np.reshape(x[:a**2], [a]*2)
+    y_sq = np.reshape(y[:a**2], [a]*2)
+    z_sq = np.reshape(z[:a**2], [a]*2)
+    # Flip every second column ? Is this needed???
+    x_sq[1::2, :] = x_sq[1::2, ::-1]
+    y_sq[1::2, :] = y_sq[1::2, ::-1]
+    z_sq[1::2, :] = z_sq[1::2, ::-1]
+
+    if norm is None:
+        conts = ax.pcolor(  x_sq, y_sq, z_sq, cmap = cmap,
+                            edgecolor = "none") # or greys
+    else:
+        # Extend 'both' replaces colors out of range by low-high range limits
+        conts = ax.pcolor(  x_sq, y_sq, z_sq, cmap = cmap, norm = norm,
+                            alpha = 0.75, edgecolor = "none")
+    return conts
+
 def plot_contour(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10, z_aux = None):
     """Render 2D filled contour plot with triangulation
 
@@ -245,7 +282,7 @@ def plot_contour(ax, x, y, z, cmap = "afmhot", norm = None, levels = 10, z_aux =
         Levels of contour plot. If int, levels are determined by pyplot.
         (It should give the same result though)
     """
-    conts = _plot_contour_3(ax, x, y, z, cmap, norm, levels, z_aux)
+    conts = _plot_contour_3b(ax, x, y, z, cmap, norm, levels, z_aux)
     return conts
 
 def _plot_surface_contours( x, y, z, z_lab = "Z", ax = None, title = None,
@@ -331,8 +368,13 @@ def plot_slice( x, y, z, z_lab = "Z", ax = None, title = None,
             if any(cl is None for cl in cbar_lims):
                 # Option 2: Variable colorbar, but better contrast for each slice
                 conts = plot_contour(ax, x, y, z, levels = n_levels, cmap = cmap)
-                cbar = fig.colorbar(conts, ticks = conts.levels, format = fmt, drawedges = False,
-                                    fraction = 0.046, pad = 0.)
+                try:
+                    cbar = fig.colorbar(conts, ticks = conts.levels, format = fmt, drawedges = False,
+                                        fraction = 0.046, pad = 0.)
+                except AttributeError as e:
+                    cbar_lims = (conts.norm.vmin, conts.norm.vmax)
+                    levels_cbar = np.linspace(*cbar_lims, n_levels)
+                    cbar = make_colorbar(fig, conts.cmap, fmt, levels_cbar, *cbar_lims)
                 # cbar.set_clim(*cbar_lims) # this appears not helpful
             else:
                 # Option 1: Same colorbar for all slices

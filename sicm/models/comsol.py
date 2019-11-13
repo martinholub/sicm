@@ -110,7 +110,6 @@ class ComsolModel(Model):
                 ax_txt = r"$r_{{sub}}$ = {:.1f}$\cdot d$".format(var / (pipette_diameter * 1e-9))
             else:
                 ax_txt = None
-
         elif secondary_var_name.lower().startswith(("r")):
             if sec_var > 1e-6:
                 txt = r"$r_{{sub}}$ = {:.1f}$\cdot d$".format(sec_var / (pipette_diameter * 1e-9))
@@ -164,10 +163,12 @@ class ComsolModel(Model):
             # Assign y-axis, scale by bulk value (robustly)
             y_ = self.approach.dsdata["Current1(A)"]
             t_ = np.cumsum(self.approach.dsdata["dt(s)"])
-            if scale_by_inf:
-                sel = x_ > 2
+            if isinstance(scale_by_inf, (float)):
+                scaler = scale_by_inf
+            elif scale_by_inf:
+                sel = x_ > 3
                 x_roll, y_roll = mathops.rolling_mean(x_[sel], y_[sel])
-                scaler = mathops.find_bulk_val(x_roll, y_roll)
+                scaler = mathops.find_bulk_val(x_roll, y_roll, is_debug = True)
                 # print(scaler)
             else:
                 _, scaler = mathops.scale_by_init(t_, y_, q = 0.5)
@@ -250,12 +251,16 @@ class ComsolModel(Model):
                         x_sec = self.comsol.data["d (m)"][sel_].values.flatten() / (pipette_diameter * 1e-9)
 
                         # Scaling often needs to be adjusted manually for respective approach curves.
-                        if scale_by_inf:
+                        # Do not scale simulation data by infinity
+                        if False: #scale_by_inf:
                             sel3 = x_sec > 2
                             scaler = mathops.find_bulk_val(x_sec[sel3], y_sec[sel3])
                             # print("{} | {} | {}".format(var, sec_var, scaler))
                         else:
-                            scaler = y_sec[-1]
+                            t_sec =  np.max(x_sec) / x_sec
+                            _, scaler = mathops.scale_by_init(  t_sec, y_sec, q = 0.5,
+                                                                t_len = t_sec[-2])
+                            # scaler = y_sec[-1]
 
                         y_sec = y_sec / scaler
 
@@ -274,7 +279,6 @@ class ComsolModel(Model):
                             fmts += [fmts_buff[j]]
                         except Exception as e:
                             pass
-
                         txt, ax_txt = self._assign_annotation( var_name, var, secondary_var_name,
                                                                 sec_var, pipette_diameter)
                         if len(uniqs_second) == 1:
@@ -288,13 +292,15 @@ class ComsolModel(Model):
                 y = np.abs(self.comsol.data[sel].iloc[:, col].values.flatten())
                 x = self.comsol.data["d (m)"][sel].values.flatten()
                 x = x / (pipette_diameter * 1e-9)
-                # scale y-axis by bulk current value
-                ## here it is the last one obtained
-                if scale_by_inf:
+                # scale y-axis by bulk current value, here it is the last one obtained
+                # Do not scale by infinity, simulation does not need it.
+                if False: #scale_by_inf:
                     sel3 = x > 2
                     scaler = mathops.find_bulk_val(x[sel3], y[sel3])
                 else:
-                    scaler = y[-1]
+                    t_ =  np.max(x) / x
+                    _, scaler = mathops.scale_by_init(  t_, y, q = 0.5,
+                                                        t_len = t_[-2])
                 y = y / scaler
 
                 ## Plot just some data, for easier visualization
