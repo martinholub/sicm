@@ -51,6 +51,8 @@ def find_bulk_val(x, y, guess = None, fun = None, is_debug = False):
                             legend = ["dpoints", "fit"],
                             fmts = ["ro", "k--"],
                             scale = "logx")
+        print("Bulk val is: ")
+        print(y_hat[-1])
     return y_hat[-1]
 
 

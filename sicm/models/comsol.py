@@ -166,7 +166,7 @@ class ComsolModel(Model):
             if isinstance(scale_by_inf, (float)):
                 scaler = scale_by_inf
             elif scale_by_inf:
-                sel = x_ > 3
+                sel = x_ > 5
                 x_roll, y_roll = mathops.rolling_mean(x_[sel], y_[sel])
                 scaler = mathops.find_bulk_val(x_roll, y_roll, is_debug = True)
                 # print(scaler)
@@ -252,7 +252,7 @@ class ComsolModel(Model):
 
                         # Scaling often needs to be adjusted manually for respective approach curves.
                         # Do not scale simulation data by infinity
-                        if False: #scale_by_inf:
+                        if True: #scale_by_inf:
                             sel3 = x_sec > 2
                             scaler = mathops.find_bulk_val(x_sec[sel3], y_sec[sel3])
                             # print("{} | {} | {}".format(var, sec_var, scaler))
@@ -294,7 +294,7 @@ class ComsolModel(Model):
                 x = x / (pipette_diameter * 1e-9)
                 # scale y-axis by bulk current value, here it is the last one obtained
                 # Do not scale by infinity, simulation does not need it.
-                if False: #scale_by_inf:
+                if True: #scale_by_inf:
                     sel3 = x > 2
                     scaler = mathops.find_bulk_val(x[sel3], y[sel3])
                 else:
